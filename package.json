@@ -1,0 +1,9 @@
+{
+  "name": "daribudget",
+  "private": true,
+  "workspaces": ["backend", "web", "mobile", "shared"],
+  "scripts": {
+    "lint": "echo 'lint placeholder'",
+    "format": "echo 'format placeholder'"
+  }
+}
