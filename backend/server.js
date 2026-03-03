@@ -21,6 +21,11 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+app.use('/api/expenses', require('./routes/expenses'));
+app.use('/api/categories', require('./routes/categories'));
+app.use('/api/budgets', require('./routes/budgets'));
+app.use('/api/shopping', require('./routes/shopping'));
+
 app.listen(PORT, () => {
   console.log(`DariBudget backend running on ${PORT}`);
 });
