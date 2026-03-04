@@ -4,6 +4,18 @@
     "slug": "daribudget",
     "version": "0.1.0",
     "orientation": "portrait",
-    "platforms": ["ios", "android"]
+    "platforms": [
+      "ios",
+      "android"
+    ],
+    "android": {
+      "package": "com.afifben.daribudget"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "0e73b3d9-5274-4e41-a124-7d4f71a342b3"
+      }
+    },
+    "owner": "afif.benmati"
   }
 }
