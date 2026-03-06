@@ -2,4 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
-body { font-family: system-ui, sans-serif; }
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background: #0b2b22;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
