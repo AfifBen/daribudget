@@ -16,37 +16,71 @@ const Card = ({ className = '', children }) => (
   <div className={`bg-forest-800/70 border border-forest-700/60 rounded-2xl p-5 shadow-soft ${className}`}>{children}</div>
 );
 
+const Modal = ({ isOpen, onClose, title, children }) => {
+  if (!isOpen) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <div className="bg-forest-800 border border-forest-700 w-full max-w-md rounded-2xl p-6 shadow-2xl">
+        <div className="flex justify-between items-center mb-6">
+          <h3 className="text-xl font-semibold text-gold-400">{title}</h3>
+          <button onClick={onClose} className="text-forest-300 hover:text-white">✕</button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+};
+
 export default function App() {
   const [active, setActive] = useState('dashboard');
-  const household_id = 1; // temp
+  const household_id = 1;
 
   const [expenses, setExpenses] = useState([]);
   const [budgets, setBudgets] = useState([]);
   const [shopping, setShopping] = useState([]);
 
+  const [modalType, setModalType] = useState(null); // 'expense', 'budget', 'shopping'
+  const [formData, setFormData] = useState({});
+
+  const fetchData = async () => {
+    try {
+      const [ex, bu, sh] = await Promise.all([
+        getExpenses({ household_id }),
+        getBudgets({ household_id, month: '2026-03' }),
+        getShopping({ household_id })
+      ]);
+      setExpenses(ex.data.data || []);
+      setBudgets(bu.data.data || []);
+      setShopping(sh.data.data || []);
+    } catch (err) {
+      console.error("Fetch error:", err);
+    }
+  };
+
   useEffect(() => {
-    getExpenses({ household_id }).then(r => setExpenses(r.data.data));
-    getBudgets({ household_id, month: '2026-03' }).then(r => setBudgets(r.data.data));
-    getShopping({ household_id }).then(r => setShopping(r.data.data));
+    fetchData();
   }, []);
 
-  const addExpense = async () => {
-    const res = await createExpense({ household_id, category_id: 1, amount: 1000, note: 'Test', spent_at: '2026-03-01' });
-    setExpenses([res.data.data, ...expenses]);
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      if (modalType === 'expense') {
+        await createExpense({ ...formData, household_id, category_id: 1, spent_at: new Date().toISOString().split('T')[0] });
+      } else if (modalType === 'budget') {
+        await createBudget({ ...formData, household_id, category_id: 1, month: '2026-03' });
+      } else if (modalType === 'shopping') {
+        await createShopping({ ...formData, household_id });
+      }
+      setModalType(null);
+      setFormData({});
+      fetchData();
+    } catch (err) {
+      alert("Erreur lors de l'ajout");
+    }
   };
 
-  const addBudget = async () => {
-    const res = await createBudget({ household_id, category_id: 1, amount: 5000, month: '2026-03' });
-    setBudgets([res.data.data, ...budgets]);
-  };
-
-  const addShopping = async () => {
-    const res = await createShopping({ household_id, name: 'Lait', category: 'Alimentaire' });
-    setShopping([res.data.data, ...shopping]);
-  };
-
-  const totalExpenses = expenses.reduce((s, e) => s + Number(e.amount || 0), 0);
-  const totalBudgets = budgets.reduce((s, b) => s + Number(b.amount || 0), 0);
+  const totalExpenses = Array.isArray(expenses) ? expenses.reduce((s, e) => s + Number(e.amount || 0), 0) : 0;
+  const totalBudgets = Array.isArray(budgets) ? budgets.reduce((s, b) => s + Number(b.amount || 0), 0) : 0;
 
   return (
     <div className="min-h-screen bg-forest-900 text-white">
@@ -81,9 +115,9 @@ export default function App() {
                     <div className="bg-gold-500/15 text-gold-300 px-3 py-1 rounded-full text-xs">+4.2% vs fév.</div>
                   </div>
                   <div className="mt-6 flex gap-3 flex-wrap">
-                    <button onClick={addExpense} className="px-4 py-2 rounded-full bg-gold-500 text-forest-900 font-medium">Ajouter dépense</button>
-                    <button onClick={addBudget} className="px-4 py-2 rounded-full bg-forest-700 text-forest-100">Créer budget</button>
-                    <button onClick={addShopping} className="px-4 py-2 rounded-full bg-forest-700 text-forest-100">Ajouter course</button>
+                    <button onClick={() => setModalType('expense')} className="px-4 py-2 rounded-full bg-gold-500 text-forest-900 font-medium">Ajouter dépense</button>
+                    <button onClick={() => setModalType('budget')} className="px-4 py-2 rounded-full bg-forest-700 text-forest-100">Créer budget</button>
+                    <button onClick={() => setModalType('shopping')} className="px-4 py-2 rounded-full bg-forest-700 text-forest-100">Ajouter course</button>
                   </div>
                 </Card>
 
@@ -126,7 +160,7 @@ export default function App() {
                       { icon: '💼', label: 'Ajouter revenu', hint: 'Salaire, bonus' },
                       { icon: '🏦', label: 'Mettre de côté', hint: 'Épargne rapide' },
                     ].map((item, idx) => (
-                      <div key={idx} className="bg-forest-700/70 px-4 py-3 rounded-xl flex items-start gap-3">
+                      <div key={idx} className="bg-forest-700/70 px-4 py-3 rounded-xl flex items-start gap-3 hover:bg-forest-700 cursor-pointer transition">
                         <div className="text-lg">{item.icon}</div>
                         <div>
                           <p className="font-medium">{item.label}</p>
@@ -142,8 +176,8 @@ export default function App() {
                   <ul className="space-y-3 text-sm">
                     {expenses.slice(0, 4).map(e => (
                       <li key={e.id} className="flex justify-between items-center bg-forest-700/60 px-3 py-2 rounded-lg">
-                        <span className="text-forest-100">🧾 {e.note}</span>
-                        <span className="text-gold-300">{e.amount} DA</span>
+                        <span className="text-forest-100 truncate pr-2">🧾 {e.note}</span>
+                        <span className="text-gold-300 whitespace-nowrap">{e.amount} DA</span>
                       </li>
                     ))}
                   </ul>
@@ -159,7 +193,7 @@ export default function App() {
                   <h2 className="text-xl font-semibold">Dépenses</h2>
                   <p className="text-forest-100/70">Suivi détaillé des sorties d'argent</p>
                 </div>
-                <button onClick={addExpense} className="px-4 py-2 rounded-full bg-gold-500 text-forest-900 font-medium">Ajouter dépense</button>
+                <button onClick={() => setModalType('expense')} className="px-4 py-2 rounded-full bg-gold-500 text-forest-900 font-medium">Ajouter dépense</button>
               </Card>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -173,7 +207,7 @@ export default function App() {
                       <div className="text-gold-400 font-semibold">{e.amount} DA</div>
                     </div>
                     <div className="mt-3 flex justify-between text-xs text-forest-100/50">
-                      <span>06 Mar</span>
+                      <span>{e.spent_at}</span>
                       <span>Carte • Maison</span>
                     </div>
                   </Card>
@@ -189,7 +223,7 @@ export default function App() {
                   <h2 className="text-xl font-semibold">Budgets</h2>
                   <p className="text-forest-100/70">Pilote tes enveloppes par catégorie</p>
                 </div>
-                <button onClick={addBudget} className="px-4 py-2 rounded-full bg-gold-500 text-forest-900 font-medium">Ajouter budget</button>
+                <button onClick={() => setModalType('budget')} className="px-4 py-2 rounded-full bg-gold-500 text-forest-900 font-medium">Ajouter budget</button>
               </Card>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -227,7 +261,7 @@ export default function App() {
                   <h2 className="text-xl font-semibold">Liste de courses</h2>
                   <p className="text-forest-100/70">Optimise les achats du foyer</p>
                 </div>
-                <button onClick={addShopping} className="px-4 py-2 rounded-full bg-gold-500 text-forest-900 font-medium">Ajouter item</button>
+                <button onClick={() => setModalType('shopping')} className="px-4 py-2 rounded-full bg-gold-500 text-forest-900 font-medium">Ajouter item</button>
               </Card>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -244,6 +278,57 @@ export default function App() {
           )}
         </div>
       </main>
+
+      <Modal 
+        isOpen={!!modalType} 
+        onClose={() => setModalType(null)} 
+        title={modalType === 'expense' ? 'Ajouter une dépense' : modalType === 'budget' ? 'Créer un budget' : 'Ajouter une course'}
+      >
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {modalType !== 'shopping' ? (
+            <>
+              <div>
+                <label className="block text-sm text-forest-300 mb-1">Montant (DA)</label>
+                <input 
+                  type="number" required 
+                  className="w-full bg-forest-900 border border-forest-700 rounded-xl px-4 py-2 text-gold-300 outline-none focus:border-gold-500"
+                  onChange={e => setFormData({...formData, amount: e.target.value})}
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-forest-300 mb-1">Note / Description</label>
+                <input 
+                  type="text" required 
+                  className="w-full bg-forest-900 border border-forest-700 rounded-xl px-4 py-2 outline-none focus:border-gold-500"
+                  onChange={e => setFormData({...formData, note: e.target.value})}
+                />
+              </div>
+            </>
+          ) : (
+            <>
+              <div>
+                <label className="block text-sm text-forest-300 mb-1">Nom de l'article</label>
+                <input 
+                  type="text" required 
+                  className="w-full bg-forest-900 border border-forest-700 rounded-xl px-4 py-2 outline-none focus:border-gold-500"
+                  onChange={e => setFormData({...formData, name: e.target.value})}
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-forest-300 mb-1">Catégorie</label>
+                <input 
+                  type="text" required 
+                  className="w-full bg-forest-900 border border-forest-700 rounded-xl px-4 py-2 outline-none focus:border-gold-500"
+                  onChange={e => setFormData({...formData, category: e.target.value})}
+                />
+              </div>
+            </>
+          )}
+          <button type="submit" className="w-full bg-gold-500 text-forest-900 font-bold py-3 rounded-xl shadow-lg mt-4">
+            Confirmer
+          </button>
+        </form>
+      </Modal>
     </div>
   );
 }
