@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../../app/app_state.dart';
 import '../../db/app_db.dart';
 import '../budgets/budgets_screen.dart';
 import '../expenses/expenses_screen.dart';
@@ -20,7 +20,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final pages = <Widget>[
-      _DashboardHome(onOpenSettings: () => context.go('/settings')),
+      const _DashboardHome(),
       const ExpensesScreen(),
       const BudgetsScreen(),
       const ShoppingScreen(),
@@ -29,14 +29,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('DariBudget'),
-        actions: [
-          IconButton(
-            onPressed: () => context.go('/settings'),
-            icon: const Icon(Icons.settings),
-          ),
-        ],
+        centerTitle: false,
       ),
       body: SafeArea(child: pages[index]),
+      floatingActionButton: index == 0
+          ? FloatingActionButton(
+              onPressed: () => _showQuickActions(context),
+              child: const Icon(Icons.add),
+            )
+          : null,
       bottomNavigationBar: NavigationBar(
         selectedIndex: index,
         onDestinationSelected: (i) => setState(() => index = i),
@@ -52,8 +53,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 }
 
 class _DashboardHome extends StatelessWidget {
-  final VoidCallback onOpenSettings;
-  const _DashboardHome({required this.onOpenSettings});
+  const _DashboardHome();
 
   @override
   Widget build(BuildContext context) {
@@ -63,39 +63,10 @@ class _DashboardHome extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Mois', style: TextStyle(color: Colors.white70)),
-                      const SizedBox(height: 6),
-                      Text(month, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            SizedBox(
-              width: 110,
-              child: Card(
-                child: ListTile(
-                  title: const Text('Langue'),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: onOpenSettings,
-                ),
-              ),
-            )
-          ],
-        ),
+        _TopBar(month: month),
         const SizedBox(height: 12),
 
-        // Metrics
+        // Hero metrics card
         StreamBuilder<List<Expense>>(
           stream: db.watchExpensesForMonth(month),
           builder: (context, expSnap) {
@@ -109,41 +80,11 @@ class _DashboardHome extends StatelessWidget {
                 final totalBudgets = budgets.fold<double>(0, (s, b) => s + b.amount);
                 final remaining = totalBudgets - totalExpenses;
 
-                return Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('Solde du mois', style: TextStyle(color: Colors.white70)),
-                        const SizedBox(height: 8),
-                        Text('${remaining.toStringAsFixed(0)} DA',
-                            style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w800)),
-                        const SizedBox(height: 14),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _MetricTile(
-                                label: 'Dépenses',
-                                value: '${totalExpenses.toStringAsFixed(0)} DA',
-                                icon: Icons.payments,
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: _MetricTile(
-                                label: 'Budgets',
-                                value: '${totalBudgets.toStringAsFixed(0)} DA',
-                                icon: Icons.pie_chart,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        _BudgetProgress(totalBudgets: totalBudgets, totalExpenses: totalExpenses),
-                      ],
-                    ),
-                  ),
+                return _HeroCard(
+                  month: month,
+                  totalExpenses: totalExpenses,
+                  totalBudgets: totalBudgets,
+                  remaining: remaining,
                 );
               },
             );
@@ -152,32 +93,207 @@ class _DashboardHome extends StatelessWidget {
 
         const SizedBox(height: 12),
 
-        // Quick actions placeholder (real actions are on each screen)
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: const [
-                _QuickChip(icon: Icons.add, label: 'Ajouter dépense'),
-                _QuickChip(icon: Icons.add_chart, label: 'Créer budget'),
-                _QuickChip(icon: Icons.shopping_cart, label: 'Ajouter course'),
-              ],
-            ),
-          ),
+        // Recent expenses preview
+        StreamBuilder<List<Expense>>(
+          stream: db.watchExpensesForMonth(month),
+          builder: (context, snap) {
+            final items = snap.data ?? const <Expense>[];
+            final top = items.take(4).toList();
+            return Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Dernières dépenses', style: TextStyle(fontWeight: FontWeight.w800)),
+                        Text(month, style: const TextStyle(color: Colors.white70)),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    if (top.isEmpty)
+                      const Text('Aucune dépense ce mois‑ci.', style: TextStyle(color: Colors.white70))
+                    else
+                      ...top.map(
+                        (e) => Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(e.note, maxLines: 1, overflow: TextOverflow.ellipsis),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      '${e.category} • ${_fmtDate(e.spentAt)}',
+                                      style: const TextStyle(color: Colors.white60, fontSize: 12),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Text('${e.amount.toStringAsFixed(0)} DA', style: const TextStyle(fontWeight: FontWeight.w800)),
+                            ],
+                          ),
+                        ),
+                      )
+                  ],
+                ),
+              ),
+            );
+          },
         ),
       ],
     );
   }
 }
 
-class _MetricTile extends StatelessWidget {
+class _TopBar extends StatelessWidget {
+  final String month;
+  const _TopBar({required this.month});
+
+  @override
+  Widget build(BuildContext context) {
+    final appState = context.watch<AppState>();
+    final code = appState.locale?.languageCode ?? 'fr';
+
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            'Vue d\'ensemble',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+          ),
+        ),
+        _LangChip(
+          code: code,
+          onTap: () => _showLanguagePicker(context),
+        ),
+      ],
+    );
+  }
+}
+
+class _LangChip extends StatelessWidget {
+  final String code;
+  final VoidCallback onTap;
+  const _LangChip({required this.code, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final label = switch (code) {
+      'ar' => 'AR',
+      'en' => 'EN',
+      _ => 'FR',
+    };
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(999),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: Colors.white12),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.language, size: 18, color: Colors.white70),
+            const SizedBox(width: 8),
+            Text(label, style: const TextStyle(fontWeight: FontWeight.w800)),
+            const SizedBox(width: 6),
+            const Icon(Icons.expand_more, size: 18, color: Colors.white70),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _HeroCard extends StatelessWidget {
+  final String month;
+  final double totalExpenses;
+  final double totalBudgets;
+  final double remaining;
+
+  const _HeroCard({
+    required this.month,
+    required this.totalExpenses,
+    required this.totalBudgets,
+    required this.remaining,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final ratio = (totalBudgets <= 0) ? 0.0 : (totalExpenses / totalBudgets).clamp(0.0, 1.0).toDouble();
+    final percent = (ratio * 100).round();
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Solde du mois', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.white70)),
+            const SizedBox(height: 10),
+            Text(
+              '${remaining.toStringAsFixed(0)} DA',
+              style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 6),
+            Text(month, style: const TextStyle(color: Colors.white60)),
+            const SizedBox(height: 14),
+
+            Row(
+              children: [
+                Expanded(
+                  child: _StatPill(label: 'Dépenses', value: '${totalExpenses.toStringAsFixed(0)} DA', icon: Icons.payments),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _StatPill(label: 'Budgets', value: '${totalBudgets.toStringAsFixed(0)} DA', icon: Icons.pie_chart),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 14),
+
+            if (totalBudgets <= 0)
+              const Text('Ajoute un budget pour voir la progression.', style: TextStyle(color: Colors.white70))
+            else ...[
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Utilisé $percent%', style: const TextStyle(color: Colors.white70)),
+                  Text('Reste ${(totalBudgets - totalExpenses).toStringAsFixed(0)} DA', style: const TextStyle(color: Colors.white70)),
+                ],
+              ),
+              const SizedBox(height: 8),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(999),
+                child: LinearProgressIndicator(
+                  value: ratio,
+                  minHeight: 10,
+                  backgroundColor: Colors.white10,
+                ),
+              )
+            ]
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StatPill extends StatelessWidget {
   final String label;
   final String value;
   final IconData icon;
-
-  const _MetricTile({required this.label, required this.value, required this.icon});
+  const _StatPill({required this.label, required this.value, required this.icon});
 
   @override
   Widget build(BuildContext context) {
@@ -197,7 +313,7 @@ class _MetricTile extends StatelessWidget {
               children: [
                 Text(label, style: const TextStyle(color: Colors.white70, fontSize: 12)),
                 const SizedBox(height: 2),
-                Text(value, style: const TextStyle(fontWeight: FontWeight.w800)),
+                Text(value, style: const TextStyle(fontWeight: FontWeight.w900)),
               ],
             ),
           ),
@@ -207,59 +323,84 @@ class _MetricTile extends StatelessWidget {
   }
 }
 
-class _BudgetProgress extends StatelessWidget {
-  final double totalBudgets;
-  final double totalExpenses;
-  const _BudgetProgress({required this.totalBudgets, required this.totalExpenses});
+void _showLanguagePicker(BuildContext context) {
+  final appState = context.read<AppState>();
+  final current = appState.locale?.languageCode ?? 'fr';
+
+  showModalBottomSheet(
+    context: context,
+    showDragHandle: true,
+    builder: (_) {
+      return SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const ListTile(title: Text('Langue', style: TextStyle(fontWeight: FontWeight.w900))),
+            _LangTile(code: 'fr', label: 'Français', selected: current == 'fr', onTap: () => appState.setLocaleByCode('fr')),
+            _LangTile(code: 'ar', label: 'العربية (RTL)', selected: current == 'ar', onTap: () => appState.setLocaleByCode('ar')),
+            _LangTile(code: 'en', label: 'English', selected: current == 'en', onTap: () => appState.setLocaleByCode('en')),
+            const SizedBox(height: 8),
+          ],
+        ),
+      );
+    },
+  ).whenComplete(() {
+    // Close only, state already updated
+  });
+}
+
+class _LangTile extends StatelessWidget {
+  final String code;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _LangTile({required this.code, required this.label, required this.selected, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    if (totalBudgets <= 0) {
-      return const Text('Ajoute un budget pour voir la progression.', style: TextStyle(color: Colors.white70));
-    }
-    final ratio = (totalExpenses / totalBudgets).clamp(0.0, 1.0).toDouble();
-    final percent = (ratio * 100).round();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text('Utilisé $percent%', style: const TextStyle(color: Colors.white70)),
-            Text('Reste ${(totalBudgets - totalExpenses).toStringAsFixed(0)} DA', style: const TextStyle(color: Colors.white70)),
-          ],
-        ),
-        const SizedBox(height: 8),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(999),
-          child: LinearProgressIndicator(
-            value: ratio,
-            minHeight: 10,
-            backgroundColor: Colors.white10,
-          ),
-        )
-      ],
+    return ListTile(
+      leading: const Icon(Icons.language),
+      title: Text(label),
+      trailing: selected ? const Icon(Icons.check) : null,
+      onTap: () {
+        onTap();
+        Navigator.pop(context);
+      },
     );
   }
+}
+
+void _showQuickActions(BuildContext context) {
+  showModalBottomSheet(
+    context: context,
+    showDragHandle: true,
+    builder: (_) {
+      return SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: const [
+            ListTile(title: Text('Actions rapides', style: TextStyle(fontWeight: FontWeight.w900))),
+            ListTile(leading: Icon(Icons.payments), title: Text('Ajouter une dépense'), subtitle: Text('Saisie rapide')), 
+            ListTile(leading: Icon(Icons.pie_chart), title: Text('Créer un budget'), subtitle: Text('Par catégorie / mois')),
+            ListTile(leading: Icon(Icons.shopping_cart), title: Text('Ajouter une course'), subtitle: Text('Liste de courses')),
+            SizedBox(height: 8),
+          ],
+        ),
+      );
+    },
+  );
+}
+
+String _fmtDate(DateTime d) {
+  final y = d.year.toString().padLeft(4, '0');
+  final m = d.month.toString().padLeft(2, '0');
+  final day = d.day.toString().padLeft(2, '0');
+  return '$y-$m-$day';
 }
 
 String _currentMonthKey() {
   final now = DateTime.now();
   final m = now.month.toString().padLeft(2, '0');
   return '${now.year}-$m';
-}
-
-class _QuickChip extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  const _QuickChip({required this.icon, required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Chip(
-      avatar: Icon(icon, size: 18),
-      label: Text(label),
-    );
-  }
 }
