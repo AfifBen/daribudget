@@ -40,6 +40,16 @@ class SettingsScreen extends StatelessWidget {
               ),
             ),
           ),
+          const SizedBox(height: 12),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.category),
+              title: const Text('Catégories'),
+              subtitle: const Text('Personnaliser catégories et sous‑catégories'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.pushNamed(context, '/categories'),
+            ),
+          ),
         ],
       ),
     );

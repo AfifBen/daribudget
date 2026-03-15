@@ -33,6 +33,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
         centerTitle: false,
         actions: [
           IconButton(
+            onPressed: () => Navigator.pushNamed(context, '/history'),
+            icon: const Icon(Icons.history),
+            tooltip: 'Historique',
+          ),
+          IconButton(
             onPressed: () => Navigator.pushNamed(context, '/settings'),
             icon: const Icon(Icons.settings),
           ),
@@ -166,28 +171,42 @@ class _DashboardHome extends StatelessWidget {
                                         for (final r in rows.take(6))
                                           Padding(
                                             padding: const EdgeInsets.only(bottom: 10),
-                                            child: Row(
-                                              children: [
-                                                Container(
-                                                  width: 10,
-                                                  height: 10,
-                                                  decoration: BoxDecoration(
-                                                    color: Color(r.color),
-                                                    borderRadius: BorderRadius.circular(99),
-                                                  ),
+                                            child: InkWell(
+                                              onTap: () {
+                                                Navigator.pushNamed(
+                                                  context,
+                                                  '/category/${r.id}/$month',
+                                                );
+                                              },
+                                              borderRadius: BorderRadius.circular(12),
+                                              child: Padding(
+                                                padding: const EdgeInsets.symmetric(vertical: 4),
+                                                child: Row(
+                                                  children: [
+                                                    Container(
+                                                      width: 10,
+                                                      height: 10,
+                                                      decoration: BoxDecoration(
+                                                        color: Color(r.color),
+                                                        borderRadius: BorderRadius.circular(99),
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 10),
+                                                    Expanded(
+                                                      child: Text(
+                                                        r.name,
+                                                        maxLines: 1,
+                                                        overflow: TextOverflow.ellipsis,
+                                                        style: const TextStyle(fontWeight: FontWeight.w700),
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 10),
+                                                    Text(r.total.toStringAsFixed(0), style: const TextStyle(color: Colors.white70)),
+                                                    const SizedBox(width: 6),
+                                                    const Icon(Icons.chevron_right, size: 18, color: Colors.white54),
+                                                  ],
                                                 ),
-                                                const SizedBox(width: 10),
-                                                Expanded(
-                                                  child: Text(
-                                                    r.name,
-                                                    maxLines: 1,
-                                                    overflow: TextOverflow.ellipsis,
-                                                    style: const TextStyle(fontWeight: FontWeight.w700),
-                                                  ),
-                                                ),
-                                                const SizedBox(width: 10),
-                                                Text(r.total.toStringAsFixed(0), style: const TextStyle(color: Colors.white70)),
-                                              ],
+                                              ),
                                             ),
                                           )
                                       ],

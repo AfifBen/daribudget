@@ -86,6 +86,60 @@ class SubcategoryTotal {
 class AppDb extends _$AppDb {
   AppDb() : super(_openConnection());
 
+  // ---------- Category CRUD
+  Future<int> createCategory({required String name, required String icon, required int color}) {
+    return into(categories).insert(CategoriesCompanion.insert(name: name, icon: icon, color: color));
+  }
+
+  Future<void> updateCategory(int id, {String? name, String? icon, int? color}) {
+    return (update(categories)..where((t) => t.id.equals(id))).write(
+      CategoriesCompanion(
+        name: name == null ? const Value.absent() : Value(name),
+        icon: icon == null ? const Value.absent() : Value(icon),
+        color: color == null ? const Value.absent() : Value(color),
+      ),
+    );
+  }
+
+  Future<bool> deleteCategory(int id) async {
+    final subs = await (select(subcategories)..where((t) => t.categoryId.equals(id))).get();
+    // If any subcategory is referenced by an expense, block delete.
+    for (final s in subs) {
+      final count = await (select(expenses)..where((t) => t.subcategoryId.equals(s.id))).get();
+      if (count.isNotEmpty) return false;
+    }
+    await (delete(subcategories)..where((t) => t.categoryId.equals(id))).go();
+    await (delete(categories)..where((t) => t.id.equals(id))).go();
+    return true;
+  }
+
+  // ---------- Subcategory CRUD
+  Future<int> createSubcategory({required int categoryId, required String name, required String icon, required int color}) {
+    return into(subcategories).insert(SubcategoriesCompanion.insert(
+      categoryId: categoryId,
+      name: name,
+      icon: icon,
+      color: color,
+    ));
+  }
+
+  Future<void> updateSubcategory(int id, {String? name, String? icon, int? color}) {
+    return (update(subcategories)..where((t) => t.id.equals(id))).write(
+      SubcategoriesCompanion(
+        name: name == null ? const Value.absent() : Value(name),
+        icon: icon == null ? const Value.absent() : Value(icon),
+        color: color == null ? const Value.absent() : Value(color),
+      ),
+    );
+  }
+
+  Future<bool> deleteSubcategory(int id) async {
+    final used = await (select(expenses)..where((t) => t.subcategoryId.equals(id))).get();
+    if (used.isNotEmpty) return false;
+    await (delete(subcategories)..where((t) => t.id.equals(id))).go();
+    return true;
+  }
+
   @override
   int get schemaVersion => 3;
 
