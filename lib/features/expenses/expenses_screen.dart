@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../app/app_state.dart';
 import '../../db/app_db.dart';
 import '../charts/pie_chart.dart';
 import 'add_expense_sheet.dart';
+
+enum ExpenseRange { day, week, month, year }
+
+enum OpsTab { expenses, income }
 
 class ExpensesScreen extends StatefulWidget {
   const ExpensesScreen({super.key});
@@ -13,12 +18,16 @@ class ExpensesScreen extends StatefulWidget {
 }
 
 class _ExpensesScreenState extends State<ExpensesScreen> {
-  int? categoryFilterId; // null => all
+  ExpenseRange range = ExpenseRange.month;
+  OpsTab opsTab = OpsTab.expenses;
+  int? categoryFilterId;
 
   @override
   Widget build(BuildContext context) {
     final db = context.read<AppDb>();
-    final month = _currentMonthKey();
+    final appState = context.watch<AppState>();
+
+    final (start, end) = _rangeToDates(range, appState.weekStart);
 
     return Stack(
       children: [
@@ -28,14 +37,62 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
             Row(
               children: [
                 Expanded(
-                  child: Text('Dépenses', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
+                  child: Text('Opérations', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
                 ),
-                Text(month, style: const TextStyle(color: Colors.white60, fontWeight: FontWeight.w700)),
+                Text(_rangeLabel(range), style: const TextStyle(color: Colors.white60, fontWeight: FontWeight.w700)),
               ],
             ),
             const SizedBox(height: 12),
 
-            // Filter (pro): one button
+            // Tabs: Dépenses / Revenus (Revenus à venir)
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: FilledButton(
+                        onPressed: () => setState(() => opsTab = OpsTab.expenses),
+                        child: const Text('Dépenses'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: null,
+                        child: const Text('Revenus (à venir)'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            // Range selector
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: SegmentedButton<ExpenseRange>(
+                    segments: const [
+                      ButtonSegment(value: ExpenseRange.day, label: Text('Jour')),
+                      ButtonSegment(value: ExpenseRange.week, label: Text('Semaine')),
+                      ButtonSegment(value: ExpenseRange.month, label: Text('Mois')),
+                      ButtonSegment(value: ExpenseRange.year, label: Text('Année')),
+                    ],
+                    selected: {range},
+                    onSelectionChanged: (s) => setState(() => range = s.first),
+                  ),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            // Filter (pro)
             Card(
               child: ListTile(
                 leading: const Icon(Icons.filter_alt_outlined),
@@ -57,9 +114,9 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
 
             const SizedBox(height: 12),
 
-            // Pie: subcategories
+            // Pie: subcategories (for this range)
             FutureBuilder<List<SubcategoryTotal>>(
-              future: db.expensesBySubcategoryForMonth(month, categoryId: categoryFilterId),
+              future: db.expensesBySubcategoryForMonth(_currentMonthKey(), categoryId: categoryFilterId),
               builder: (context, snap) {
                 final rows = (snap.data ?? const <SubcategoryTotal>[]).where((r) => r.total > 0).toList();
                 if (rows.isEmpty) return const SizedBox.shrink();
@@ -71,9 +128,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                   for (final r in top) PieSlice(value: r.total, color: Color(r.color), label: r.name),
                   if (rest > 0) const PieSlice(value: 0, color: Colors.white24, label: 'Autres'),
                 ];
-                if (rest > 0) {
-                  slices[slices.length - 1] = PieSlice(value: rest, color: Colors.white24, label: 'Autres');
-                }
+                if (rest > 0) slices[slices.length - 1] = PieSlice(value: rest, color: Colors.white24, label: 'Autres');
 
                 return Card(
                   child: Padding(
@@ -131,79 +186,57 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
 
             const SizedBox(height: 12),
 
-            // List
+            // Grouped list by date
             StreamBuilder<List<Expense>>(
-              stream: db.watchExpensesForMonth(month),
+              stream: db.watchExpensesBetween(start, end),
               builder: (context, snap) {
-                final items = snap.data ?? const <Expense>[];
-                if (items.isEmpty) {
+                final all = snap.data ?? const <Expense>[];
+                if (all.isEmpty) {
                   return const Card(
                     child: Padding(
                       padding: EdgeInsets.all(16),
-                      child: Text('Aucune dépense ce mois‑ci.'),
+                      child: Text('Aucune dépense pour cette période.'),
                     ),
                   );
                 }
 
-                // if filter set, keep only those matching category via subcategory lookup
                 return FutureBuilder<List<Subcategory>>(
                   future: db.select(db.subcategories).get(),
                   builder: (context, subSnap) {
                     final subs = subSnap.data ?? const <Subcategory>[];
-                    if (subs.isEmpty) {
-                      return const Card(
-                        child: Padding(
-                          padding: EdgeInsets.all(16),
-                          child: Text('Sous‑catégories non chargées. Redémarre l’app.'),
-                        ),
-                      );
-                    }
-
                     final subToCat = {for (final s in subs) s.id: s.categoryId};
+                    final subToName = {for (final s in subs) s.id: s.name};
 
                     final filtered = categoryFilterId == null
-                        ? items
-                        : items.where((e) => subToCat[e.subcategoryId] == categoryFilterId).toList();
+                        ? all
+                        : all.where((e) => subToCat[e.subcategoryId] == categoryFilterId).toList();
 
-                    return FutureBuilder<List<Category>>(
-                      future: db.listCategories(),
-                      builder: (context, catSnap) {
-                        final cats = catSnap.data ?? const <Category>[];
-                        final catMap = {for (final c in cats) c.id: c};
+                    // group by YYYY-MM-DD
+                    final groups = <String, List<Expense>>{};
+                    for (final e in filtered) {
+                      final key = _fmtDate(e.spentAt);
+                      (groups[key] ??= []).add(e);
+                    }
+                    final keys = groups.keys.toList()..sort((a, b) => b.compareTo(a));
 
-                        return Column(
-                          children: [
-                            for (final e in filtered)
-                              Builder(builder: (context) {
-                                final sub = subs.firstWhere(
-                                  (s) => s.id == e.subcategoryId,
-                                  orElse: () => subs.first,
-                                );
-                                final cat = catMap[sub.categoryId];
-                                final title = cat == null ? sub.name : '${cat.name} / ${sub.name}';
-                                final subtitle = e.note.trim().isEmpty
-                                    ? _fmtDate(e.spentAt)
-                                    : '${e.note} • ${_fmtDate(e.spentAt)}';
-
-                                return Card(
-                                  child: ListTile(
-                                    title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
-                                    subtitle: Text(
-                                      subtitle,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(color: Colors.white60),
-                                    ),
-                                    trailing: Text(
-                                      '${e.amount.toStringAsFixed(0)} DA',
-                                      style: const TextStyle(fontWeight: FontWeight.w900),
-                                    ),
-                                  ),
-                                );
-                              }),
-                          ],
-                        );
-                      },
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        for (final k in keys) ...[
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(4, 8, 4, 8),
+                            child: Text(k, style: const TextStyle(fontWeight: FontWeight.w900, color: Colors.white70)),
+                          ),
+                          for (final e in groups[k]!)
+                            Card(
+                              child: ListTile(
+                                title: Text(subToName[e.subcategoryId] ?? e.note, maxLines: 1, overflow: TextOverflow.ellipsis),
+                                subtitle: e.note.trim().isEmpty ? null : Text(e.note, maxLines: 1, overflow: TextOverflow.ellipsis),
+                                trailing: Text('${e.amount.toStringAsFixed(0)} DA', style: const TextStyle(fontWeight: FontWeight.w900)),
+                              ),
+                            ),
+                        ]
+                      ],
                     );
                   },
                 );
@@ -216,12 +249,14 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
           right: 16,
           bottom: 16,
           child: FloatingActionButton(
-            onPressed: () => showModalBottomSheet(
-              context: context,
-              isScrollControlled: true,
-              useSafeArea: true,
-              builder: (_) => const AddExpenseSheet(),
-            ),
+            onPressed: opsTab == OpsTab.expenses
+                ? () => showModalBottomSheet(
+                      context: context,
+                      isScrollControlled: true,
+                      useSafeArea: true,
+                      builder: (_) => const AddExpenseSheet(),
+                    )
+                : null,
             child: const Icon(Icons.add),
           ),
         )
@@ -280,4 +315,46 @@ String _currentMonthKey() {
   final now = DateTime.now();
   final m = now.month.toString().padLeft(2, '0');
   return '${now.year}-$m';
+}
+
+String _rangeLabel(ExpenseRange r) {
+  switch (r) {
+    case ExpenseRange.day:
+      return 'Aujourd\'hui';
+    case ExpenseRange.week:
+      return 'Cette semaine';
+    case ExpenseRange.month:
+      return 'Ce mois';
+    case ExpenseRange.year:
+      return 'Cette année';
+  }
+}
+
+(DateTime, DateTime) _rangeToDates(ExpenseRange r, WeekStart weekStart) {
+  final now = DateTime.now();
+  DateTime start;
+  DateTime end;
+
+  switch (r) {
+    case ExpenseRange.day:
+      start = DateTime(now.year, now.month, now.day);
+      end = start.add(const Duration(days: 1));
+      return (start, end);
+    case ExpenseRange.week:
+      // week start config
+      final dow = now.weekday % 7; // Sunday=0
+      final currentSunday = DateTime(now.year, now.month, now.day).subtract(Duration(days: dow));
+      final currentMonday = DateTime(now.year, now.month, now.day).subtract(Duration(days: now.weekday - 1));
+      start = weekStart == WeekStart.sunday ? currentSunday : currentMonday;
+      end = start.add(const Duration(days: 7));
+      return (start, end);
+    case ExpenseRange.month:
+      start = DateTime(now.year, now.month, 1);
+      end = (now.month == 12) ? DateTime(now.year + 1, 1, 1) : DateTime(now.year, now.month + 1, 1);
+      return (start, end);
+    case ExpenseRange.year:
+      start = DateTime(now.year, 1, 1);
+      end = DateTime(now.year + 1, 1, 1);
+      return (start, end);
+  }
 }

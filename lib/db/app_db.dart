@@ -272,6 +272,13 @@ class AppDb extends _$AppDb {
   // ---------- Expenses
   Stream<List<Expense>> watchExpenses() => (select(expenses)..orderBy([(t) => OrderingTerm.desc(t.spentAt)])).watch();
 
+  Stream<List<Expense>> watchExpensesBetween(DateTime start, DateTime end) {
+    return (select(expenses)
+          ..where((t) => t.spentAt.isBetweenValues(start, end))
+          ..orderBy([(t) => OrderingTerm.desc(t.spentAt)]))
+        .watch();
+  }
+
   Stream<List<Expense>> watchExpensesForMonth(String monthKey) {
     final range = monthRange(monthKey);
     return (select(expenses)
