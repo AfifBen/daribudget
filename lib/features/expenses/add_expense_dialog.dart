@@ -33,9 +33,10 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
       title: const Text('Ajouter une dépense'),
       content: Form(
         key: _formKey,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
             TextFormField(
               controller: _amountCtrl,
               keyboardType: TextInputType.number,
@@ -94,7 +95,8 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
                 );
               },
             ),
-          ],
+            ],
+          ),
         ),
       ),
       actions: [
