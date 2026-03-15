@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
+
 import 'package:provider/provider.dart';
 
 import '../../db/app_db.dart';
@@ -33,7 +33,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         centerTitle: false,
         actions: [
           IconButton(
-            onPressed: () => context.go('/settings'),
+            onPressed: () => Navigator.pushNamed(context, '/settings'),
             icon: const Icon(Icons.settings),
           ),
         ],
@@ -41,7 +41,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       body: SafeArea(child: pages[index]),
       floatingActionButton: index == 0
           ? FloatingActionButton(
-              onPressed: () => _showQuickActions(context),
+              onPressed: () {},
               child: const Icon(Icons.add),
             )
           : null,
@@ -71,183 +71,200 @@ class _DashboardHome extends StatelessWidget {
       stream: db.watchCategories(),
       builder: (context, catSnap) {
         final cats = catSnap.data ?? const <Category>[];
-        final catMap = {for (final c in cats) c.id: c.name};
+        final catMap = {for (final c in cats) c.id: c};
 
         return StreamBuilder<List<Subcategory>>(
           stream: db.select(db.subcategories).watch(),
           builder: (context, subSnap) {
             final subs = subSnap.data ?? const <Subcategory>[];
-            final subToLabel = <int, String>{
-              for (final s in subs)
-                s.id: '${catMap[s.categoryId] ?? 'Catégorie'} / ${s.name}',
-            };
+            final subToCat = {for (final s in subs) s.id: s.categoryId};
 
             return ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            _TopBar(month: month),
-            const SizedBox(height: 12),
+              padding: const EdgeInsets.all(16),
+              children: [
+                _TopBar(month: month),
+                const SizedBox(height: 12),
 
-            // Hero metrics card
-            StreamBuilder<List<Expense>>(
-              stream: db.watchExpensesForMonth(month),
-              builder: (context, expSnap) {
-                final expenses = expSnap.data ?? const <Expense>[];
-                final totalExpenses = expenses.fold<double>(0, (s, e) => s + e.amount);
+                // Hero metrics card (stream-based)
+                StreamBuilder<List<Expense>>(
+                  stream: db.watchExpensesForMonth(month),
+                  builder: (context, expSnap) {
+                    final expenses = expSnap.data ?? const <Expense>[];
+                    final totalExpenses = expenses.fold<double>(0, (s, e) => s + e.amount);
 
-                return StreamBuilder<List<Budget>>(
-                  stream: db.watchBudgets(month),
-                  builder: (context, budSnap) {
-                    final budgets = budSnap.data ?? const <Budget>[];
-                    final totalBudgets = budgets.fold<double>(0, (s, b) => s + b.amount);
-                    final remaining = totalBudgets - totalExpenses;
+                    return StreamBuilder<List<Budget>>(
+                      stream: db.watchBudgets(month),
+                      builder: (context, budSnap) {
+                        final budgets = budSnap.data ?? const <Budget>[];
+                        final totalBudgets = budgets.fold<double>(0, (s, b) => s + b.amount);
+                        final remaining = totalBudgets - totalExpenses;
 
-                    return _HeroCard(
-                      month: month,
-                      totalExpenses: totalExpenses,
-                      totalBudgets: totalBudgets,
-                      remaining: remaining,
+                        return _HeroCard(
+                          month: month,
+                          totalExpenses: totalExpenses,
+                          totalBudgets: totalBudgets,
+                          remaining: remaining,
+                        );
+                      },
                     );
                   },
-                );
-              },
-            ),
+                ),
 
-            const SizedBox(height: 12),
+                const SizedBox(height: 12),
 
-            // Pie: expenses by category
-            FutureBuilder<List<CategoryTotal>>(
-              future: db.expensesByCategoryForMonth(month),
-              builder: (context, snap) {
-                final rows = (snap.data ?? const <CategoryTotal>[]).where((r) => r.total > 0).toList();
-                if (rows.isEmpty) {
-                  return const SizedBox.shrink();
-                }
+                // Pie: expenses by category (reactive)
+                StreamBuilder<List<Expense>>(
+                  stream: db.watchExpensesForMonth(month),
+                  builder: (context, expSnap) {
+                    final expenses = expSnap.data ?? const <Expense>[];
+                    final totals = <int, double>{}; // categoryId -> total
+                    for (final e in expenses) {
+                      final catId = subToCat[e.subcategoryId];
+                      if (catId == null) continue;
+                      totals[catId] = (totals[catId] ?? 0) + e.amount;
+                    }
 
-                final top = rows.take(5).toList();
-                final rest = rows.skip(5).fold<double>(0, (s, r) => s + r.total);
+                    final rows = totals.entries
+                        .map((kv) {
+                          final cat = catMap[kv.key];
+                          return (
+                            id: kv.key,
+                            name: cat?.name ?? 'Catégorie',
+                            color: cat?.color ?? 0xFF999999,
+                            total: kv.value,
+                          );
+                        })
+                        .toList()
+                      ..sort((a, b) => b.total.compareTo(a.total));
 
-                final slices = <PieSlice>[
-                  for (final r in top)
-                    PieSlice(value: r.total, color: Color(r.color), label: r.name),
-                  if (rest > 0) const PieSlice(value: 0, color: Colors.white10, label: 'Autres'),
-                ];
-                // fix "Autres" value
-                if (rest > 0) {
-                  slices[slices.length - 1] = PieSlice(value: rest, color: Colors.white24, label: 'Autres');
-                }
-
-                return Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('Dépenses par catégorie', style: TextStyle(fontWeight: FontWeight.w900)),
-                        const SizedBox(height: 12),
-                        Row(
+                    return Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            SimplePieChart(slices: slices, size: 130),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: Column(
+                            const Text('Dépenses par catégorie', style: TextStyle(fontWeight: FontWeight.w900)),
+                            const SizedBox(height: 12),
+                            if (rows.isEmpty)
+                              const Text('Ajoute des dépenses pour voir le graphique.', style: TextStyle(color: Colors.white70))
+                            else
+                              Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  for (final s in slices.take(6))
-                                    Padding(
-                                      padding: const EdgeInsets.only(bottom: 10),
-                                      child: Row(
-                                        children: [
-                                          Container(
-                                            width: 10,
-                                            height: 10,
-                                            decoration: BoxDecoration(
-                                              color: s.color,
-                                              borderRadius: BorderRadius.circular(99),
-                                            ),
-                                          ),
-                                          const SizedBox(width: 10),
-                                          Expanded(
-                                            child: Text(
-                                              s.label,
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: const TextStyle(fontWeight: FontWeight.w700),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    )
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
-
-            const SizedBox(height: 12),
-
-            // Recent expenses preview
-            StreamBuilder<List<Expense>>(
-              stream: db.watchExpensesForMonth(month),
-              builder: (context, snap) {
-                final items = snap.data ?? const <Expense>[];
-                final top = items.take(4).toList();
-                return Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text('Dernières dépenses', style: TextStyle(fontWeight: FontWeight.w800)),
-                            Text(month, style: const TextStyle(color: Colors.white70)),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        if (top.isEmpty)
-                          const Text('Aucune dépense ce mois‑ci.', style: TextStyle(color: Colors.white70))
-                        else
-                          ...top.map(
-                            (e) => Padding(
-                              padding: const EdgeInsets.only(bottom: 10),
-                              child: Row(
-                                children: [
+                                  SimplePieChart(
+                                    slices: [
+                                      for (final r in rows.take(6))
+                                        PieSlice(value: r.total, color: Color(r.color), label: r.name),
+                                    ],
+                                    size: 130,
+                                  ),
+                                  const SizedBox(width: 14),
                                   Expanded(
                                     child: Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
-                                        Text(e.note, maxLines: 1, overflow: TextOverflow.ellipsis),
-                                        const SizedBox(height: 2),
-                                        Text(
-                                          '${_subLabel(e.subcategoryId, subToLabel)} • ${_fmtDate(e.spentAt)}',
-                                          style: const TextStyle(color: Colors.white60, fontSize: 12),
-                                        ),
+                                        for (final r in rows.take(6))
+                                          Padding(
+                                            padding: const EdgeInsets.only(bottom: 10),
+                                            child: Row(
+                                              children: [
+                                                Container(
+                                                  width: 10,
+                                                  height: 10,
+                                                  decoration: BoxDecoration(
+                                                    color: Color(r.color),
+                                                    borderRadius: BorderRadius.circular(99),
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 10),
+                                                Expanded(
+                                                  child: Text(
+                                                    r.name,
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                    style: const TextStyle(fontWeight: FontWeight.w700),
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 10),
+                                                Text(r.total.toStringAsFixed(0), style: const TextStyle(color: Colors.white70)),
+                                              ],
+                                            ),
+                                          )
                                       ],
                                     ),
                                   ),
-                                  const SizedBox(width: 10),
-                                  Text('${e.amount.toStringAsFixed(0)} DA', style: const TextStyle(fontWeight: FontWeight.w800)),
                                 ],
                               ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+
+                const SizedBox(height: 12),
+
+                // Recent expenses preview
+                StreamBuilder<List<Expense>>(
+                  stream: db.watchExpensesForMonth(month),
+                  builder: (context, snap) {
+                    final items = snap.data ?? const <Expense>[];
+                    final top = items.take(4).toList();
+
+                    return Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text('Dernières dépenses', style: TextStyle(fontWeight: FontWeight.w800)),
+                                Text(month, style: const TextStyle(color: Colors.white70)),
+                              ],
                             ),
-                          )
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
-          ],
-        );
+                            const SizedBox(height: 12),
+                            if (top.isEmpty)
+                              const Text('Aucune dépense ce mois‑ci.', style: TextStyle(color: Colors.white70))
+                            else
+                              ...top.map(
+                                (e) {
+                                  final catId = subToCat[e.subcategoryId];
+                                  final cat = catId == null ? null : catMap[catId];
+                                  return Padding(
+                                    padding: const EdgeInsets.only(bottom: 10),
+                                    child: Row(
+                                      children: [
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(e.note, maxLines: 1, overflow: TextOverflow.ellipsis),
+                                              const SizedBox(height: 2),
+                                              Text(
+                                                '${cat?.name ?? 'Catégorie'} • ${_fmtDate(e.spentAt)}',
+                                                style: const TextStyle(color: Colors.white60, fontSize: 12),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        const SizedBox(width: 10),
+                                        Text('${e.amount.toStringAsFixed(0)} DA',
+                                            style: const TextStyle(fontWeight: FontWeight.w800)),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              )
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ],
+            );
           },
         );
       },
@@ -308,21 +325,14 @@ class _HeroCard extends StatelessWidget {
             const SizedBox(height: 6),
             Text(month, style: const TextStyle(color: Colors.white60)),
             const SizedBox(height: 14),
-
             Row(
               children: [
-                Expanded(
-                  child: _StatPill(label: 'Dépenses', value: '${totalExpenses.toStringAsFixed(0)} DA', icon: Icons.payments),
-                ),
+                Expanded(child: _StatPill(label: 'Dépenses', value: '${totalExpenses.toStringAsFixed(0)} DA', icon: Icons.payments)),
                 const SizedBox(width: 10),
-                Expanded(
-                  child: _StatPill(label: 'Budgets', value: '${totalBudgets.toStringAsFixed(0)} DA', icon: Icons.pie_chart),
-                ),
+                Expanded(child: _StatPill(label: 'Budgets', value: '${totalBudgets.toStringAsFixed(0)} DA', icon: Icons.pie_chart)),
               ],
             ),
-
             const SizedBox(height: 14),
-
             if (totalBudgets <= 0)
               const Text('Ajoute un budget pour voir la progression.', style: TextStyle(color: Colors.white70))
             else ...[
@@ -383,29 +393,6 @@ class _StatPill extends StatelessWidget {
     );
   }
 }
-
-void _showQuickActions(BuildContext context) {
-  showModalBottomSheet(
-    context: context,
-    showDragHandle: true,
-    builder: (_) {
-      return SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: const [
-            ListTile(title: Text('Actions rapides', style: TextStyle(fontWeight: FontWeight.w900))),
-            ListTile(leading: Icon(Icons.payments), title: Text('Ajouter une dépense'), subtitle: Text('Saisie rapide')), 
-            ListTile(leading: Icon(Icons.pie_chart), title: Text('Créer un budget'), subtitle: Text('Par catégorie / mois')),
-            ListTile(leading: Icon(Icons.shopping_cart), title: Text('Ajouter une course'), subtitle: Text('Liste de courses')),
-            SizedBox(height: 8),
-          ],
-        ),
-      );
-    },
-  );
-}
-
-String _subLabel(int subId, Map<int, String> cache) => cache[subId] ?? 'Catégorie';
 
 String _fmtDate(DateTime d) {
   final y = d.year.toString().padLeft(4, '0');
