@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../db/app_db.dart';
 import '../budgets/budgets_screen.dart';
+import '../charts/pie_chart.dart';
 import '../expenses/expenses_screen.dart';
 import '../shopping/shopping_screen.dart';
 
@@ -108,6 +109,84 @@ class _DashboardHome extends StatelessWidget {
                       remaining: remaining,
                     );
                   },
+                );
+              },
+            ),
+
+            const SizedBox(height: 12),
+
+            // Pie: expenses by category
+            FutureBuilder<List<CategoryTotal>>(
+              future: db.expensesByCategoryForMonth(month),
+              builder: (context, snap) {
+                final rows = (snap.data ?? const <CategoryTotal>[]).where((r) => r.total > 0).toList();
+                if (rows.isEmpty) {
+                  return const SizedBox.shrink();
+                }
+
+                final top = rows.take(5).toList();
+                final rest = rows.skip(5).fold<double>(0, (s, r) => s + r.total);
+
+                final slices = <PieSlice>[
+                  for (final r in top)
+                    PieSlice(value: r.total, color: Color(r.color), label: r.name),
+                  if (rest > 0) const PieSlice(value: 0, color: Colors.white10, label: 'Autres'),
+                ];
+                // fix "Autres" value
+                if (rest > 0) {
+                  slices[slices.length - 1] = PieSlice(value: rest, color: Colors.white24, label: 'Autres');
+                }
+
+                return Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Dépenses par catégorie', style: TextStyle(fontWeight: FontWeight.w900)),
+                        const SizedBox(height: 12),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            SimplePieChart(slices: slices, size: 130, centerText: ''),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  for (final s in slices.take(6))
+                                    Padding(
+                                      padding: const EdgeInsets.only(bottom: 10),
+                                      child: Row(
+                                        children: [
+                                          Container(
+                                            width: 10,
+                                            height: 10,
+                                            decoration: BoxDecoration(
+                                              color: s.color,
+                                              borderRadius: BorderRadius.circular(99),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 10),
+                                          Expanded(
+                                            child: Text(
+                                              s.label,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(fontWeight: FontWeight.w700),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    )
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
                 );
               },
             ),

@@ -47,6 +47,22 @@ class ShoppingItems extends Table {
 }
 
 @DriftDatabase(tables: [Categories, Subcategories, Expenses, Budgets, ShoppingItems])
+class CategoryTotal {
+  final int categoryId;
+  final String name;
+  final String icon;
+  final int color;
+  final double total;
+
+  const CategoryTotal({
+    required this.categoryId,
+    required this.name,
+    required this.icon,
+    required this.color,
+    required this.total,
+  });
+}
+
 class AppDb extends _$AppDb {
   AppDb() : super(_openConnection());
 
@@ -177,16 +193,20 @@ class AppDb extends _$AppDb {
   Stream<List<Expense>> watchExpenses() => (select(expenses)..orderBy([(t) => OrderingTerm.desc(t.spentAt)])).watch();
 
   Stream<List<Expense>> watchExpensesForMonth(String monthKey) {
+    final range = monthRange(monthKey);
+    return (select(expenses)
+          ..where((t) => t.spentAt.isBetweenValues(range.$1, range.$2))
+          ..orderBy([(t) => OrderingTerm.desc(t.spentAt)]))
+        .watch();
+  }
+
+  (DateTime, DateTime) monthRange(String monthKey) {
     final parts = monthKey.split('-');
     final year = int.parse(parts[0]);
     final month = int.parse(parts[1]);
     final start = DateTime(year, month, 1);
     final end = (month == 12) ? DateTime(year + 1, 1, 1) : DateTime(year, month + 1, 1);
-
-    return (select(expenses)
-          ..where((t) => t.spentAt.isBetweenValues(start, end))
-          ..orderBy([(t) => OrderingTerm.desc(t.spentAt)]))
-        .watch();
+    return (start, end);
   }
 
   Future<int> addExpense({required double amount, required String note, required int subcategoryId, DateTime? spentAt}) {
@@ -199,6 +219,41 @@ class AppDb extends _$AppDb {
   }
 
   Future<void> deleteExpense(int id) => (delete(expenses)..where((t) => t.id.equals(id))).go();
+
+  /// Aggregation: total expenses per category for a month
+  Future<List<CategoryTotal>> expensesByCategoryForMonth(String monthKey) async {
+    final range = monthRange(monthKey);
+    final startIso = range.$1.toIso8601String();
+    final endIso = range.$2.toIso8601String();
+
+    final c = categories.actualTableName;
+    final s = subcategories.actualTableName;
+    final e = expenses.actualTableName;
+
+    final rows = await customSelect(
+      'SELECT $c.id AS category_id, $c.name AS category_name, $c.icon AS category_icon, $c.color AS category_color, '
+      'SUM($e.amount) AS total_amount '
+      'FROM $e '
+      'JOIN $s ON $s.id = $e.subcategory_id '
+      'JOIN $c ON $c.id = $s.category_id '
+      'WHERE $e.spent_at >= ? AND $e.spent_at < ? '
+      'GROUP BY $c.id, $c.name, $c.icon, $c.color '
+      'ORDER BY total_amount DESC',
+      variables: [Variable.withString(startIso), Variable.withString(endIso)],
+      readsFrom: {categories, subcategories, expenses},
+    ).get();
+
+    return rows.map((r) {
+      final d = r.data;
+      return CategoryTotal(
+        categoryId: d['category_id'] as int,
+        name: d['category_name'] as String,
+        icon: d['category_icon'] as String,
+        color: d['category_color'] as int,
+        total: (d['total_amount'] as num?)?.toDouble() ?? 0,
+      );
+    }).toList();
+  }
 
   // ---------- Budgets
   Stream<List<Budget>> watchBudgets(String month) => (select(budgets)..where((t) => t.month.equals(month))).watch();
