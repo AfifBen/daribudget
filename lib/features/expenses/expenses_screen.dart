@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../app/app_state.dart';
@@ -225,7 +226,8 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                         for (final k in keys) ...[
                           Padding(
                             padding: const EdgeInsets.fromLTRB(4, 8, 4, 8),
-                            child: Text(k, style: const TextStyle(fontWeight: FontWeight.w900, color: Colors.white70)),
+                            child: Text(_fmtDateHuman(context, k),
+                                style: const TextStyle(fontWeight: FontWeight.w900, color: Colors.white70)),
                           ),
                           for (final e in groups[k]!)
                             Card(
@@ -309,6 +311,18 @@ String _fmtDate(DateTime d) {
   final m = d.month.toString().padLeft(2, '0');
   final day = d.day.toString().padLeft(2, '0');
   return '$y-$m-$day';
+}
+
+String _fmtDateHuman(BuildContext context, String yyyyMmDd) {
+  try {
+    final d = DateTime.parse(yyyyMmDd);
+    // Use device locale (fr/ar/en)
+    final code = Localizations.localeOf(context).languageCode;
+    // Example: dim. 15 mars
+    return DateFormat('EEE d MMM', code).format(d);
+  } catch (_) {
+    return yyyyMmDd;
+  }
 }
 
 String _currentMonthKey() {
