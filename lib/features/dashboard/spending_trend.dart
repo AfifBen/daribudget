@@ -32,6 +32,7 @@ class _SpendingTrendState extends State<SpendingTrend> {
             SizedBox(
               width: double.infinity,
               child: SegmentedButton<TrendRange>(
+                showSelectedIcon: false,
                 segments: const [
                   ButtonSegment(value: TrendRange.day, label: Text('Jour')),
                   ButtonSegment(value: TrendRange.week, label: Text('Semaine')),
