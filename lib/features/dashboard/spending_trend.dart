@@ -27,12 +27,13 @@ class _SpendingTrendState extends State<SpendingTrend> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                const Expanded(
-                  child: Text('Dépenses', style: TextStyle(fontWeight: FontWeight.w900)),
-                ),
-                SegmentedButton<TrendRange>(
+            const Text('Dépenses', style: TextStyle(fontWeight: FontWeight.w900)),
+            const SizedBox(height: 10),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: SegmentedButton<TrendRange>(
                   segments: const [
                     ButtonSegment(value: TrendRange.day, label: Text('Jour')),
                     ButtonSegment(value: TrendRange.week, label: Text('Semaine')),
@@ -41,7 +42,7 @@ class _SpendingTrendState extends State<SpendingTrend> {
                   selected: {range},
                   onSelectionChanged: (s) => setState(() => range = s.first),
                 ),
-              ],
+              ),
             ),
             const SizedBox(height: 12),
             FutureBuilder<List<BarDatum>>(
