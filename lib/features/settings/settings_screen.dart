@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../app/app_state.dart';
@@ -47,7 +48,7 @@ class SettingsScreen extends StatelessWidget {
               title: const Text('Catégories'),
               subtitle: const Text('Personnaliser catégories et sous‑catégories'),
               trailing: const Icon(Icons.chevron_right),
-              onTap: () => Navigator.pushNamed(context, '/categories'),
+              onTap: () => context.go('/categories'),
             ),
           ),
         ],

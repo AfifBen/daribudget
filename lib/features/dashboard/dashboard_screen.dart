@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../db/app_db.dart';
@@ -33,12 +34,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
         centerTitle: false,
         actions: [
           IconButton(
-            onPressed: () => Navigator.pushNamed(context, '/history'),
+            onPressed: () => context.go('/history'),
             icon: const Icon(Icons.history),
             tooltip: 'Historique',
           ),
           IconButton(
-            onPressed: () => Navigator.pushNamed(context, '/settings'),
+            onPressed: () => context.go('/settings'),
             icon: const Icon(Icons.settings),
           ),
         ],
@@ -46,7 +47,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       body: SafeArea(child: pages[index]),
       floatingActionButton: index == 0
           ? FloatingActionButton(
-              onPressed: () {},
+              onPressed: () => _showQuickActions(context),
               child: const Icon(Icons.add),
             )
           : null,
@@ -173,10 +174,7 @@ class _DashboardHome extends StatelessWidget {
                                             padding: const EdgeInsets.only(bottom: 10),
                                             child: InkWell(
                                               onTap: () {
-                                                Navigator.pushNamed(
-                                                  context,
-                                                  '/category/${r.id}/$month',
-                                                );
+                                                context.go('/category/${r.id}/$month');
                                               },
                                               borderRadius: BorderRadius.circular(12),
                                               child: Padding(
@@ -357,4 +355,40 @@ String _currentMonthKey() {
   final now = DateTime.now();
   final m = now.month.toString().padLeft(2, '0');
   return '${now.year}-$m';
+}
+
+void _showQuickActions(BuildContext context) {
+  showModalBottomSheet(
+    context: context,
+    showDragHandle: true,
+    builder: (_) {
+      return SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const ListTile(title: Text('Actions rapides', style: TextStyle(fontWeight: FontWeight.w900))),
+            ListTile(
+              leading: const Icon(Icons.payments),
+              title: const Text('Ajouter une dépense'),
+              onTap: () {
+                Navigator.pop(context);
+                context.go('/');
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.pie_chart),
+              title: const Text('Créer un budget'),
+              onTap: () => Navigator.pop(context),
+            ),
+            ListTile(
+              leading: const Icon(Icons.shopping_cart),
+              title: const Text('Ajouter une course'),
+              onTap: () => Navigator.pop(context),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      );
+    },
+  );
 }
