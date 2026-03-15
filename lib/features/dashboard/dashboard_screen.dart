@@ -202,67 +202,7 @@ class _DashboardHome extends StatelessWidget {
                   },
                 ),
 
-                const SizedBox(height: 12),
 
-                // Recent expenses preview
-                StreamBuilder<List<Expense>>(
-                  stream: db.watchExpensesForMonth(month),
-                  builder: (context, snap) {
-                    final items = snap.data ?? const <Expense>[];
-                    final top = items.take(4).toList();
-
-                    return Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                const Text('Dernières dépenses', style: TextStyle(fontWeight: FontWeight.w800)),
-                                Text(month, style: const TextStyle(color: Colors.white70)),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                            if (top.isEmpty)
-                              const Text('Aucune dépense ce mois‑ci.', style: TextStyle(color: Colors.white70))
-                            else
-                              ...top.map(
-                                (e) {
-                                  final catId = subToCat[e.subcategoryId];
-                                  final cat = catId == null ? null : catMap[catId];
-                                  return Padding(
-                                    padding: const EdgeInsets.only(bottom: 10),
-                                    child: Row(
-                                      children: [
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              Text(e.note, maxLines: 1, overflow: TextOverflow.ellipsis),
-                                              const SizedBox(height: 2),
-                                              Text(
-                                                '${cat?.name ?? 'Catégorie'} • ${_fmtDate(e.spentAt)}',
-                                                style: const TextStyle(color: Colors.white60, fontSize: 12),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        const SizedBox(width: 10),
-                                        Text('${e.amount.toStringAsFixed(0)} DA',
-                                            style: const TextStyle(fontWeight: FontWeight.w800)),
-                                      ],
-                                    ),
-                                  );
-                                },
-                              )
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
               ],
             );
           },
@@ -392,13 +332,6 @@ class _StatPill extends StatelessWidget {
       ),
     );
   }
-}
-
-String _fmtDate(DateTime d) {
-  final y = d.year.toString().padLeft(4, '0');
-  final m = d.month.toString().padLeft(2, '0');
-  final day = d.day.toString().padLeft(2, '0');
-  return '$y-$m-$day';
 }
 
 String _currentMonthKey() {
