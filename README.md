@@ -9,12 +9,12 @@ DariBudget est une application **mobile-first** de gestion de budget familial, p
 - Langues: **FR + AR (RTL) + EN**
 
 ## Structure
-- `flutter_app/` : nouvelle app Flutter
+- `daribudget/` : nouvelle app Flutter
 - `legacy/v1/` : ancien code (archivé)
 
 ## Démarrage
 ```bash
-cd flutter_app
+cd daribudget/
 flutter pub get
 flutter run
 ```
