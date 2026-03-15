@@ -39,7 +39,16 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
             Card(
               child: ListTile(
                 leading: const Icon(Icons.filter_alt_outlined),
-                title: Text(categoryFilterId == null ? 'Toutes les catégories' : 'Catégorie sélectionnée'),
+                title: FutureBuilder<List<Category>>(
+                  future: db.listCategories(),
+                  builder: (context, snap) {
+                    final cats = snap.data ?? const <Category>[];
+                    final name = categoryFilterId == null
+                        ? 'Toutes les catégories'
+                        : (cats.firstWhere((c) => c.id == categoryFilterId, orElse: () => cats.first).name);
+                    return Text(name);
+                  },
+                ),
                 subtitle: const Text('Filtrer les dépenses'),
                 trailing: const Icon(Icons.expand_more),
                 onTap: () => _pickCategoryFilter(context, db),
@@ -77,7 +86,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            SimplePieChart(slices: slices, size: 130, centerText: ''),
+                            SimplePieChart(slices: slices, size: 130),
                             const SizedBox(width: 14),
                             Expanded(
                               child: Column(
@@ -147,17 +156,38 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                         ? items
                         : items.where((e) => subToCat[e.subcategoryId] == categoryFilterId).toList();
 
-                    return Column(
-                      children: [
-                        for (final e in filtered)
-                          Card(
-                            child: ListTile(
-                              title: Text(e.note, maxLines: 1, overflow: TextOverflow.ellipsis),
-                              subtitle: Text(_fmtDate(e.spentAt), style: const TextStyle(color: Colors.white60)),
-                              trailing: Text('${e.amount.toStringAsFixed(0)} DA', style: const TextStyle(fontWeight: FontWeight.w900)),
-                            ),
-                          ),
-                      ],
+                    return FutureBuilder<List<Category>>(
+                      future: db.listCategories(),
+                      builder: (context, catSnap) {
+                        final cats = catSnap.data ?? const <Category>[];
+                        final catMap = {for (final c in cats) c.id: c};
+
+                        return Column(
+                          children: [
+                            for (final e in filtered)
+                              Builder(builder: (context) {
+                                final sub = subs.firstWhere((s) => s.id == e.subcategoryId, orElse: () => subs.first);
+                                final cat = catMap[sub.categoryId];
+                                final title = cat == null ? sub.name : '${cat.name} / ${sub.name}';
+                                final subtitle = e.note.trim().isEmpty ? _fmtDate(e.spentAt) : '${e.note} • ${_fmtDate(e.spentAt)}';
+
+                                return Card(
+                                  child: ListTile(
+                                    title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+                                    subtitle: Text(
+                                      subtitle,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(color: Colors.white60),
+                                    ),
+                                    trailing: Text('${e.amount.toStringAsFixed(0)} DA',
+                                        style: const TextStyle(fontWeight: FontWeight.w900)),
+                                  ),
+                                );
+                              }),
+                          ],
+                        );
+                      },
                     );
                   },
                 );

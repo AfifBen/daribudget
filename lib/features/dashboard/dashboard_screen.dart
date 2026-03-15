@@ -148,7 +148,7 @@ class _DashboardHome extends StatelessWidget {
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            SimplePieChart(slices: slices, size: 130, centerText: ''),
+                            SimplePieChart(slices: slices, size: 130),
                             const SizedBox(width: 14),
                             Expanded(
                               child: Column(
