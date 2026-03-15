@@ -24,6 +24,8 @@ class _AddBudgetDialogState extends State<AddBudgetDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final db = context.read<AppDb>();
+
     return AlertDialog(
       title: Text('Créer un budget (${widget.month})'),
       content: Form(
@@ -43,22 +45,14 @@ class _AddBudgetDialogState extends State<AddBudgetDialog> {
             ),
             const SizedBox(height: 10),
             FutureBuilder<List<Category>>(
-              future: context.read<AppDb>().listCategories('budget'),
+              future: db.listCategories(),
               builder: (context, snapshot) {
                 final cats = snapshot.data ?? const <Category>[];
-                if (cats.isEmpty) {
-                  return const Text('Aucune catégorie.');
-                }
+                if (cats.isEmpty) return const Text('Aucune catégorie.');
                 _categoryId ??= cats.first.id;
                 return DropdownButtonFormField<int>(
                   initialValue: _categoryId,
-                  items: [
-                    for (final c in cats)
-                      DropdownMenuItem(
-                        value: c.id,
-                        child: Text(c.name),
-                      ),
-                  ],
+                  items: [for (final c in cats) DropdownMenuItem(value: c.id, child: Text(c.name))],
                   onChanged: (v) => setState(() => _categoryId = v),
                   decoration: const InputDecoration(labelText: 'Catégorie'),
                 );
@@ -72,7 +66,6 @@ class _AddBudgetDialogState extends State<AddBudgetDialog> {
         FilledButton(
           onPressed: () async {
             if (!(_formKey.currentState?.validate() ?? false)) return;
-            final db = context.read<AppDb>();
             await db.addBudget(
               amount: double.parse(_amountCtrl.text.trim()),
               month: widget.month,

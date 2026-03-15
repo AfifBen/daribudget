@@ -67,12 +67,21 @@ class _DashboardHome extends StatelessWidget {
     final month = _currentMonthKey();
 
     return StreamBuilder<List<Category>>(
-      stream: db.watchCategories('expense'),
+      stream: db.watchCategories(),
       builder: (context, catSnap) {
         final cats = catSnap.data ?? const <Category>[];
-        final cache = {for (final c in cats) c.id: c.name};
+        final catMap = {for (final c in cats) c.id: c.name};
 
-        return ListView(
+        return StreamBuilder<List<Subcategory>>(
+          stream: db.select(db.subcategories).watch(),
+          builder: (context, subSnap) {
+            final subs = subSnap.data ?? const <Subcategory>[];
+            final subToLabel = <int, String>{
+              for (final s in subs)
+                s.id: '${catMap[s.categoryId] ?? 'Catégorie'} / ${s.name}',
+            };
+
+            return ListView(
           padding: const EdgeInsets.all(16),
           children: [
             _TopBar(month: month),
@@ -140,7 +149,7 @@ class _DashboardHome extends StatelessWidget {
                                         Text(e.note, maxLines: 1, overflow: TextOverflow.ellipsis),
                                         const SizedBox(height: 2),
                                         Text(
-                                          '${_catName(e.categoryId, cache)} • ${_fmtDate(e.spentAt)}',
+                                          '${_subLabel(e.subcategoryId, subToLabel)} • ${_fmtDate(e.spentAt)}',
                                           style: const TextStyle(color: Colors.white60, fontSize: 12),
                                         ),
                                       ],
@@ -159,6 +168,8 @@ class _DashboardHome extends StatelessWidget {
               },
             ),
           ],
+        );
+          },
         );
       },
     );
@@ -315,7 +326,7 @@ void _showQuickActions(BuildContext context) {
   );
 }
 
-String _catName(int categoryId, Map<int, String> cache) => cache[categoryId] ?? 'Catégorie';
+String _subLabel(int subId, Map<int, String> cache) => cache[subId] ?? 'Catégorie';
 
 String _fmtDate(DateTime d) {
   final y = d.year.toString().padLeft(4, '0');

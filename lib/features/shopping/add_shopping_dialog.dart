@@ -23,6 +23,8 @@ class _AddShoppingDialogState extends State<AddShoppingDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final db = context.read<AppDb>();
+
     return AlertDialog(
       title: const Text('Ajouter une course'),
       content: Form(
@@ -37,22 +39,14 @@ class _AddShoppingDialogState extends State<AddShoppingDialog> {
             ),
             const SizedBox(height: 10),
             FutureBuilder<List<Category>>(
-              future: context.read<AppDb>().listCategories('shopping'),
+              future: db.listCategories(),
               builder: (context, snapshot) {
                 final cats = snapshot.data ?? const <Category>[];
-                if (cats.isEmpty) {
-                  return const Text('Aucune catégorie.');
-                }
+                if (cats.isEmpty) return const Text('Aucune catégorie.');
                 _categoryId ??= cats.first.id;
                 return DropdownButtonFormField<int>(
                   initialValue: _categoryId,
-                  items: [
-                    for (final c in cats)
-                      DropdownMenuItem(
-                        value: c.id,
-                        child: Text(c.name),
-                      ),
-                  ],
+                  items: [for (final c in cats) DropdownMenuItem(value: c.id, child: Text(c.name))],
                   onChanged: (v) => setState(() => _categoryId = v),
                   decoration: const InputDecoration(labelText: 'Catégorie'),
                 );
@@ -66,7 +60,6 @@ class _AddShoppingDialogState extends State<AddShoppingDialog> {
         FilledButton(
           onPressed: () async {
             if (!(_formKey.currentState?.validate() ?? false)) return;
-            final db = context.read<AppDb>();
             await db.addShoppingItem(
               name: _nameCtrl.text.trim(),
               categoryId: _categoryId!,
