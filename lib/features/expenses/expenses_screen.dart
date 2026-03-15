@@ -43,10 +43,10 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                   future: db.listCategories(),
                   builder: (context, snap) {
                     final cats = snap.data ?? const <Category>[];
-                    final name = categoryFilterId == null
-                        ? 'Toutes les catégories'
-                        : (cats.firstWhere((c) => c.id == categoryFilterId, orElse: () => cats.first).name);
-                    return Text(name);
+                    if (cats.isEmpty) return const Text('Toutes les catégories');
+                    if (categoryFilterId == null) return const Text('Toutes les catégories');
+                    final found = cats.where((c) => c.id == categoryFilterId).toList();
+                    return Text(found.isEmpty ? 'Toutes les catégories' : found.first.name);
                   },
                 ),
                 subtitle: const Text('Filtrer les dépenses'),
@@ -150,6 +150,15 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                   future: db.select(db.subcategories).get(),
                   builder: (context, subSnap) {
                     final subs = subSnap.data ?? const <Subcategory>[];
+                    if (subs.isEmpty) {
+                      return const Card(
+                        child: Padding(
+                          padding: EdgeInsets.all(16),
+                          child: Text('Sous‑catégories non chargées. Redémarre l’app.'),
+                        ),
+                      );
+                    }
+
                     final subToCat = {for (final s in subs) s.id: s.categoryId};
 
                     final filtered = categoryFilterId == null
@@ -166,10 +175,15 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                           children: [
                             for (final e in filtered)
                               Builder(builder: (context) {
-                                final sub = subs.firstWhere((s) => s.id == e.subcategoryId, orElse: () => subs.first);
+                                final sub = subs.firstWhere(
+                                  (s) => s.id == e.subcategoryId,
+                                  orElse: () => subs.first,
+                                );
                                 final cat = catMap[sub.categoryId];
                                 final title = cat == null ? sub.name : '${cat.name} / ${sub.name}';
-                                final subtitle = e.note.trim().isEmpty ? _fmtDate(e.spentAt) : '${e.note} • ${_fmtDate(e.spentAt)}';
+                                final subtitle = e.note.trim().isEmpty
+                                    ? _fmtDate(e.spentAt)
+                                    : '${e.note} • ${_fmtDate(e.spentAt)}';
 
                                 return Card(
                                   child: ListTile(
@@ -180,8 +194,10 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                                       overflow: TextOverflow.ellipsis,
                                       style: const TextStyle(color: Colors.white60),
                                     ),
-                                    trailing: Text('${e.amount.toStringAsFixed(0)} DA',
-                                        style: const TextStyle(fontWeight: FontWeight.w900)),
+                                    trailing: Text(
+                                      '${e.amount.toStringAsFixed(0)} DA',
+                                      style: const TextStyle(fontWeight: FontWeight.w900),
+                                    ),
                                   ),
                                 );
                               }),
