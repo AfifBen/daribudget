@@ -13,12 +13,11 @@ class AddShoppingDialog extends StatefulWidget {
 class _AddShoppingDialogState extends State<AddShoppingDialog> {
   final _formKey = GlobalKey<FormState>();
   final _nameCtrl = TextEditingController();
-  final _catCtrl = TextEditingController(text: 'Général');
+  int? _categoryId;
 
   @override
   void dispose() {
     _nameCtrl.dispose();
-    _catCtrl.dispose();
     super.dispose();
   }
 
@@ -37,9 +36,27 @@ class _AddShoppingDialogState extends State<AddShoppingDialog> {
               validator: (v) => (v == null || v.trim().isEmpty) ? 'Obligatoire' : null,
             ),
             const SizedBox(height: 10),
-            TextFormField(
-              controller: _catCtrl,
-              decoration: const InputDecoration(labelText: 'Catégorie'),
+            FutureBuilder<List<Category>>(
+              future: context.read<AppDb>().listCategories('shopping'),
+              builder: (context, snapshot) {
+                final cats = snapshot.data ?? const <Category>[];
+                if (cats.isEmpty) {
+                  return const Text('Aucune catégorie.');
+                }
+                _categoryId ??= cats.first.id;
+                return DropdownButtonFormField<int>(
+                  initialValue: _categoryId,
+                  items: [
+                    for (final c in cats)
+                      DropdownMenuItem(
+                        value: c.id,
+                        child: Text(c.name),
+                      ),
+                  ],
+                  onChanged: (v) => setState(() => _categoryId = v),
+                  decoration: const InputDecoration(labelText: 'Catégorie'),
+                );
+              },
             ),
           ],
         ),
@@ -52,7 +69,7 @@ class _AddShoppingDialogState extends State<AddShoppingDialog> {
             final db = context.read<AppDb>();
             await db.addShoppingItem(
               name: _nameCtrl.text.trim(),
-              category: _catCtrl.text.trim().isEmpty ? 'Général' : _catCtrl.text.trim(),
+              categoryId: _categoryId!,
             );
             if (context.mounted) Navigator.pop(context);
           },

@@ -66,93 +66,101 @@ class _DashboardHome extends StatelessWidget {
     final db = context.read<AppDb>();
     final month = _currentMonthKey();
 
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        _TopBar(month: month),
-        const SizedBox(height: 12),
+    return StreamBuilder<List<Category>>(
+      stream: db.watchCategories('expense'),
+      builder: (context, catSnap) {
+        final cats = catSnap.data ?? const <Category>[];
+        final cache = {for (final c in cats) c.id: c.name};
 
-        // Hero metrics card
-        StreamBuilder<List<Expense>>(
-          stream: db.watchExpensesForMonth(month),
-          builder: (context, expSnap) {
-            final expenses = expSnap.data ?? const <Expense>[];
-            final totalExpenses = expenses.fold<double>(0, (s, e) => s + e.amount);
+        return ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            _TopBar(month: month),
+            const SizedBox(height: 12),
 
-            return StreamBuilder<List<Budget>>(
-              stream: db.watchBudgets(month),
-              builder: (context, budSnap) {
-                final budgets = budSnap.data ?? const <Budget>[];
-                final totalBudgets = budgets.fold<double>(0, (s, b) => s + b.amount);
-                final remaining = totalBudgets - totalExpenses;
+            // Hero metrics card
+            StreamBuilder<List<Expense>>(
+              stream: db.watchExpensesForMonth(month),
+              builder: (context, expSnap) {
+                final expenses = expSnap.data ?? const <Expense>[];
+                final totalExpenses = expenses.fold<double>(0, (s, e) => s + e.amount);
 
-                return _HeroCard(
-                  month: month,
-                  totalExpenses: totalExpenses,
-                  totalBudgets: totalBudgets,
-                  remaining: remaining,
+                return StreamBuilder<List<Budget>>(
+                  stream: db.watchBudgets(month),
+                  builder: (context, budSnap) {
+                    final budgets = budSnap.data ?? const <Budget>[];
+                    final totalBudgets = budgets.fold<double>(0, (s, b) => s + b.amount);
+                    final remaining = totalBudgets - totalExpenses;
+
+                    return _HeroCard(
+                      month: month,
+                      totalExpenses: totalExpenses,
+                      totalBudgets: totalBudgets,
+                      remaining: remaining,
+                    );
+                  },
                 );
               },
-            );
-          },
-        ),
+            ),
 
-        const SizedBox(height: 12),
+            const SizedBox(height: 12),
 
-        // Recent expenses preview
-        StreamBuilder<List<Expense>>(
-          stream: db.watchExpensesForMonth(month),
-          builder: (context, snap) {
-            final items = snap.data ?? const <Expense>[];
-            final top = items.take(4).toList();
-            return Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            // Recent expenses preview
+            StreamBuilder<List<Expense>>(
+              stream: db.watchExpensesForMonth(month),
+              builder: (context, snap) {
+                final items = snap.data ?? const <Expense>[];
+                final top = items.take(4).toList();
+                return Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Dernières dépenses', style: TextStyle(fontWeight: FontWeight.w800)),
-                        Text(month, style: const TextStyle(color: Colors.white70)),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text('Dernières dépenses', style: TextStyle(fontWeight: FontWeight.w800)),
+                            Text(month, style: const TextStyle(color: Colors.white70)),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        if (top.isEmpty)
+                          const Text('Aucune dépense ce mois‑ci.', style: TextStyle(color: Colors.white70))
+                        else
+                          ...top.map(
+                            (e) => Padding(
+                              padding: const EdgeInsets.only(bottom: 10),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(e.note, maxLines: 1, overflow: TextOverflow.ellipsis),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          '${_catName(e.categoryId, cache)} • ${_fmtDate(e.spentAt)}',
+                                          style: const TextStyle(color: Colors.white60, fontSize: 12),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Text('${e.amount.toStringAsFixed(0)} DA', style: const TextStyle(fontWeight: FontWeight.w800)),
+                                ],
+                              ),
+                            ),
+                          )
                       ],
                     ),
-                    const SizedBox(height: 12),
-                    if (top.isEmpty)
-                      const Text('Aucune dépense ce mois‑ci.', style: TextStyle(color: Colors.white70))
-                    else
-                      ...top.map(
-                        (e) => Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(e.note, maxLines: 1, overflow: TextOverflow.ellipsis),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      '${e.category} • ${_fmtDate(e.spentAt)}',
-                                      style: const TextStyle(color: Colors.white60, fontSize: 12),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              Text('${e.amount.toStringAsFixed(0)} DA', style: const TextStyle(fontWeight: FontWeight.w800)),
-                            ],
-                          ),
-                        ),
-                      )
-                  ],
-                ),
-              ),
-            );
-          },
-        ),
-      ],
+                  ),
+                );
+              },
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -306,6 +314,8 @@ void _showQuickActions(BuildContext context) {
     },
   );
 }
+
+String _catName(int categoryId, Map<int, String> cache) => cache[categoryId] ?? 'Catégorie';
 
 String _fmtDate(DateTime d) {
   final y = d.year.toString().padLeft(4, '0');

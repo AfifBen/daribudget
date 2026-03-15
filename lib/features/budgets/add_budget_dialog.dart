@@ -14,12 +14,11 @@ class AddBudgetDialog extends StatefulWidget {
 class _AddBudgetDialogState extends State<AddBudgetDialog> {
   final _formKey = GlobalKey<FormState>();
   final _amountCtrl = TextEditingController();
-  final _catCtrl = TextEditingController(text: 'Général');
+  int? _categoryId;
 
   @override
   void dispose() {
     _amountCtrl.dispose();
-    _catCtrl.dispose();
     super.dispose();
   }
 
@@ -43,9 +42,27 @@ class _AddBudgetDialogState extends State<AddBudgetDialog> {
               },
             ),
             const SizedBox(height: 10),
-            TextFormField(
-              controller: _catCtrl,
-              decoration: const InputDecoration(labelText: 'Catégorie'),
+            FutureBuilder<List<Category>>(
+              future: context.read<AppDb>().listCategories('budget'),
+              builder: (context, snapshot) {
+                final cats = snapshot.data ?? const <Category>[];
+                if (cats.isEmpty) {
+                  return const Text('Aucune catégorie.');
+                }
+                _categoryId ??= cats.first.id;
+                return DropdownButtonFormField<int>(
+                  initialValue: _categoryId,
+                  items: [
+                    for (final c in cats)
+                      DropdownMenuItem(
+                        value: c.id,
+                        child: Text(c.name),
+                      ),
+                  ],
+                  onChanged: (v) => setState(() => _categoryId = v),
+                  decoration: const InputDecoration(labelText: 'Catégorie'),
+                );
+              },
             ),
           ],
         ),
@@ -59,7 +76,7 @@ class _AddBudgetDialogState extends State<AddBudgetDialog> {
             await db.addBudget(
               amount: double.parse(_amountCtrl.text.trim()),
               month: widget.month,
-              category: _catCtrl.text.trim().isEmpty ? 'Général' : _catCtrl.text.trim(),
+              categoryId: _categoryId!,
             );
             if (context.mounted) Navigator.pop(context);
           },

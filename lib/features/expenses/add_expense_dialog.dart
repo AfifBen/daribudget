@@ -14,13 +14,12 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
   final _formKey = GlobalKey<FormState>();
   final _amountCtrl = TextEditingController();
   final _noteCtrl = TextEditingController();
-  final _catCtrl = TextEditingController(text: 'Général');
+  int? _categoryId;
 
   @override
   void dispose() {
     _amountCtrl.dispose();
     _noteCtrl.dispose();
-    _catCtrl.dispose();
     super.dispose();
   }
 
@@ -50,9 +49,27 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
               validator: (v) => (v == null || v.trim().isEmpty) ? 'Obligatoire' : null,
             ),
             const SizedBox(height: 10),
-            TextFormField(
-              controller: _catCtrl,
-              decoration: const InputDecoration(labelText: 'Catégorie'),
+            FutureBuilder<List<Category>>(
+              future: context.read<AppDb>().listCategories('expense'),
+              builder: (context, snapshot) {
+                final cats = snapshot.data ?? const <Category>[];
+                if (cats.isEmpty) {
+                  return const Text('Aucune catégorie.');
+                }
+                _categoryId ??= cats.first.id;
+                return DropdownButtonFormField<int>(
+                  initialValue: _categoryId,
+                  items: [
+                    for (final c in cats)
+                      DropdownMenuItem(
+                        value: c.id,
+                        child: Text(c.name),
+                      ),
+                  ],
+                  onChanged: (v) => setState(() => _categoryId = v),
+                  decoration: const InputDecoration(labelText: 'Catégorie'),
+                );
+              },
             ),
           ],
         ),
@@ -66,7 +83,7 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
             await db.addExpense(
               amount: double.parse(_amountCtrl.text.trim()),
               note: _noteCtrl.text.trim(),
-              category: _catCtrl.text.trim().isEmpty ? 'Général' : _catCtrl.text.trim(),
+              categoryId: _categoryId!,
             );
             if (context.mounted) Navigator.pop(context);
           },
