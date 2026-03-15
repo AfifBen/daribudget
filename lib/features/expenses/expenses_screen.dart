@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../db/app_db.dart';
 import '../charts/pie_chart.dart';
-import 'add_expense_dialog.dart';
+import 'add_expense_sheet.dart';
 
 class ExpensesScreen extends StatefulWidget {
   const ExpensesScreen({super.key});
@@ -215,10 +215,14 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
         Positioned(
           right: 16,
           bottom: 16,
-          child: FloatingActionButton.extended(
-            onPressed: () => showDialog(context: context, builder: (_) => const AddExpenseDialog()),
-            icon: const Icon(Icons.add),
-            label: const Text('Ajouter'),
+          child: FloatingActionButton(
+            onPressed: () => showModalBottomSheet(
+              context: context,
+              isScrollControlled: true,
+              useSafeArea: true,
+              builder: (_) => const AddExpenseSheet(),
+            ),
+            child: const Icon(Icons.add),
           ),
         )
       ],
