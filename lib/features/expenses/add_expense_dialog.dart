@@ -59,7 +59,11 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
               builder: (context, snapshot) {
                 final cats = snapshot.data ?? const <Category>[];
                 if (cats.isEmpty) return const Text('Aucune catégorie.');
-                _categoryId ??= cats.first.id;
+                final validCatIds = cats.map((c) => c.id).toSet();
+                if (_categoryId == null || !validCatIds.contains(_categoryId)) {
+                  _categoryId = cats.first.id;
+                  _subcategoryId = null;
+                }
 
                 return DropdownButtonFormField<int>(
                   initialValue: _categoryId,
@@ -83,7 +87,11 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
                 final subs = snapshot.data ?? const <Subcategory>[];
                 if (_categoryId == null) return const SizedBox.shrink();
                 if (subs.isEmpty) return const Text('Aucune sous‑catégorie.');
-                _subcategoryId ??= subs.first.id;
+
+                final validSubIds = subs.map((s) => s.id).toSet();
+                if (_subcategoryId == null || !validSubIds.contains(_subcategoryId)) {
+                  _subcategoryId = subs.first.id;
+                }
 
                 return DropdownButtonFormField<int>(
                   initialValue: _subcategoryId,
