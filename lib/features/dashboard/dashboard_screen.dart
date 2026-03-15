@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
-import '../../app/app_state.dart';
 import '../../db/app_db.dart';
 import '../budgets/budgets_screen.dart';
 import '../expenses/expenses_screen.dart';
@@ -30,6 +30,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
       appBar: AppBar(
         title: const Text('DariBudget'),
         centerTitle: false,
+        actions: [
+          IconButton(
+            onPressed: () => context.go('/settings'),
+            icon: const Icon(Icons.settings),
+          ),
+        ],
       ),
       body: SafeArea(child: pages[index]),
       floatingActionButton: index == 0
@@ -157,9 +163,6 @@ class _TopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final appState = context.watch<AppState>();
-    final code = appState.locale?.languageCode ?? 'fr';
-
     return Row(
       children: [
         Expanded(
@@ -168,48 +171,8 @@ class _TopBar extends StatelessWidget {
             style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
           ),
         ),
-        _LangChip(
-          code: code,
-          onTap: () => _showLanguagePicker(context),
-        ),
+        Text(month, style: const TextStyle(color: Colors.white60, fontWeight: FontWeight.w700)),
       ],
-    );
-  }
-}
-
-class _LangChip extends StatelessWidget {
-  final String code;
-  final VoidCallback onTap;
-  const _LangChip({required this.code, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final label = switch (code) {
-      'ar' => 'AR',
-      'en' => 'EN',
-      _ => 'FR',
-    };
-
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(999),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: Colors.white12),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.language, size: 18, color: Colors.white70),
-            const SizedBox(width: 8),
-            Text(label, style: const TextStyle(fontWeight: FontWeight.w800)),
-            const SizedBox(width: 6),
-            const Icon(Icons.expand_more, size: 18, color: Colors.white70),
-          ],
-        ),
-      ),
     );
   }
 }
@@ -319,54 +282,6 @@ class _StatPill extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-void _showLanguagePicker(BuildContext context) {
-  final appState = context.read<AppState>();
-  final current = appState.locale?.languageCode ?? 'fr';
-
-  showModalBottomSheet(
-    context: context,
-    showDragHandle: true,
-    builder: (_) {
-      return SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const ListTile(title: Text('Langue', style: TextStyle(fontWeight: FontWeight.w900))),
-            _LangTile(code: 'fr', label: 'Français', selected: current == 'fr', onTap: () => appState.setLocaleByCode('fr')),
-            _LangTile(code: 'ar', label: 'العربية (RTL)', selected: current == 'ar', onTap: () => appState.setLocaleByCode('ar')),
-            _LangTile(code: 'en', label: 'English', selected: current == 'en', onTap: () => appState.setLocaleByCode('en')),
-            const SizedBox(height: 8),
-          ],
-        ),
-      );
-    },
-  ).whenComplete(() {
-    // Close only, state already updated
-  });
-}
-
-class _LangTile extends StatelessWidget {
-  final String code;
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _LangTile({required this.code, required this.label, required this.selected, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      leading: const Icon(Icons.language),
-      title: Text(label),
-      trailing: selected ? const Icon(Icons.check) : null,
-      onTap: () {
-        onTap();
-        Navigator.pop(context);
-      },
     );
   }
 }
