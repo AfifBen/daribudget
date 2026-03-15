@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../db/app_db.dart';
+import 'color_picker_sheet.dart';
+import 'icon_picker_sheet.dart';
 
 class CategoryManagerScreen extends StatelessWidget {
   const CategoryManagerScreen({super.key});
@@ -47,10 +49,14 @@ class CategoryManagerScreen extends StatelessWidget {
                             if (v == 'rename') _renameCategory(context, db, c);
                             if (v == 'delete') _deleteCategory(context, db, c);
                             if (v == 'addSub') _createSubcategory(context, db, c.id);
+                            if (v == 'icon') _changeCategoryIcon(context, db, c);
+                            if (v == 'color') _changeCategoryColor(context, db, c);
                           },
                           itemBuilder: (context) => const [
                             PopupMenuItem(value: 'addSub', child: Text('Ajouter sous‑catégorie')),
                             PopupMenuItem(value: 'rename', child: Text('Renommer')),
+                            PopupMenuItem(value: 'icon', child: Text('Changer icône')),
+                            PopupMenuItem(value: 'color', child: Text('Changer couleur')),
                             PopupMenuItem(value: 'delete', child: Text('Supprimer')),
                           ],
                         ),
@@ -64,9 +70,13 @@ class CategoryManagerScreen extends StatelessWidget {
                                 onSelected: (v) {
                                   if (v == 'rename') _renameSubcategory(context, db, s);
                                   if (v == 'delete') _deleteSubcategory(context, db, s);
+                                  if (v == 'icon') _changeSubIcon(context, db, s);
+                                  if (v == 'color') _changeSubColor(context, db, s);
                                 },
                                 itemBuilder: (context) => const [
                                   PopupMenuItem(value: 'rename', child: Text('Renommer')),
+                                  PopupMenuItem(value: 'icon', child: Text('Changer icône')),
+                                  PopupMenuItem(value: 'color', child: Text('Changer couleur')),
                                   PopupMenuItem(value: 'delete', child: Text('Supprimer')),
                                 ],
                               ),
@@ -148,6 +158,30 @@ Future<void> _deleteSubcategory(BuildContext context, AppDb db, Subcategory s) a
   if (!deleted) {
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Impossible: sous‑catégorie utilisée par des dépenses.')));
   }
+}
+
+Future<void> _changeCategoryIcon(BuildContext context, AppDb db, Category c) async {
+  final icon = await showIconPicker(context, initial: c.icon);
+  if (icon == null) return;
+  await db.updateCategory(c.id, icon: icon);
+}
+
+Future<void> _changeCategoryColor(BuildContext context, AppDb db, Category c) async {
+  final color = await showColorPicker(context, initial: c.color);
+  if (color == null) return;
+  await db.updateCategory(c.id, color: color);
+}
+
+Future<void> _changeSubIcon(BuildContext context, AppDb db, Subcategory s) async {
+  final icon = await showIconPicker(context, initial: s.icon);
+  if (icon == null) return;
+  await db.updateSubcategory(s.id, icon: icon);
+}
+
+Future<void> _changeSubColor(BuildContext context, AppDb db, Subcategory s) async {
+  final color = await showColorPicker(context, initial: s.color);
+  if (color == null) return;
+  await db.updateSubcategory(s.id, color: color);
 }
 
 Future<String?> _promptText(BuildContext context, {required String title, String? hint, String? initial}) {

@@ -8,6 +8,7 @@ import '../budgets/budgets_screen.dart';
 import '../charts/pie_chart.dart';
 import '../expenses/expenses_screen.dart';
 import '../shopping/shopping_screen.dart';
+import 'spending_trend.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -115,6 +116,10 @@ class _DashboardHome extends StatelessWidget {
                     );
                   },
                 ),
+
+                const SizedBox(height: 12),
+
+                SpendingTrend(month: month),
 
                 const SizedBox(height: 12),
 

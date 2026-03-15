@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../app/app_state.dart';
+import 'week_start_sheet.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -39,6 +40,16 @@ class SettingsScreen extends StatelessWidget {
                   ),
                 ],
               ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.date_range),
+              title: const Text('Semaine'),
+              subtitle: Text(appState.weekStart == WeekStart.sunday ? 'Commence le dimanche (défaut)' : 'Commence le lundi'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => showWeekStartPicker(context),
             ),
           ),
           const SizedBox(height: 12),

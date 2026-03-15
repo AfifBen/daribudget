@@ -83,6 +83,12 @@ class SubcategoryTotal {
   });
 }
 
+class TimeTotal {
+  final String key;
+  final double total;
+  const TimeTotal({required this.key, required this.total});
+}
+
 class AppDb extends _$AppDb {
   AppDb() : super(_openConnection());
 
@@ -293,6 +299,49 @@ class AppDb extends _$AppDb {
   }
 
   Future<void> deleteExpense(int id) => (delete(expenses)..where((t) => t.id.equals(id))).go();
+
+  /// Group expenses by day within a month (YYYY-MM)
+  Future<List<TimeTotal>> expensesByDay(String monthKey) async {
+    final range = monthRange(monthKey);
+    final startIso = range.$1.toIso8601String();
+    final endIso = range.$2.toIso8601String();
+    final e = expenses.actualTableName;
+
+    final rows = await customSelect(
+      'SELECT substr($e.spent_at, 1, 10) AS day_key, SUM($e.amount) AS total_amount '
+      'FROM $e '
+      'WHERE $e.spent_at >= ? AND $e.spent_at < ? '
+      'GROUP BY day_key '
+      'ORDER BY day_key ASC',
+      variables: [Variable.withString(startIso), Variable.withString(endIso)],
+      readsFrom: {expenses},
+    ).get();
+
+    return rows
+        .map((r) => TimeTotal(key: (r.data['day_key'] as String?) ?? '', total: (r.data['total_amount'] as num?)?.toDouble() ?? 0))
+        .toList();
+  }
+
+  /// Group expenses by week buckets within a month (simple week-of-month)
+  Future<List<TimeTotal>> expensesByWeekOfMonth(String monthKey) async {
+    final list = await expensesByDay(monthKey);
+    final parts = monthKey.split('-');
+    final year = int.parse(parts[0]);
+    final month = int.parse(parts[1]);
+    final start = DateTime(year, month, 1);
+
+    final map = <int, double>{};
+    for (final d in list) {
+      if (d.key.length < 10) continue;
+      final day = DateTime.parse(d.key);
+      final offset = day.difference(start).inDays;
+      final w = (offset ~/ 7) + 1; // 1..5
+      map[w] = (map[w] ?? 0) + d.total;
+    }
+
+    final keys = map.keys.toList()..sort();
+    return [for (final k in keys) TimeTotal(key: 'S$k', total: map[k] ?? 0)];
+  }
 
   /// Aggregation: total expenses per category for a month
   Future<List<CategoryTotal>> expensesByCategoryForMonth(String monthKey) async {
