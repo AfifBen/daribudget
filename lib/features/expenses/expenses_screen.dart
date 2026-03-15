@@ -2,70 +2,170 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../db/app_db.dart';
+import '../charts/pie_chart.dart';
 import 'add_expense_dialog.dart';
 
-class ExpensesScreen extends StatelessWidget {
+class ExpensesScreen extends StatefulWidget {
   const ExpensesScreen({super.key});
+
+  @override
+  State<ExpensesScreen> createState() => _ExpensesScreenState();
+}
+
+class _ExpensesScreenState extends State<ExpensesScreen> {
+  int? categoryFilterId; // null => all
 
   @override
   Widget build(BuildContext context) {
     final db = context.read<AppDb>();
+    final month = _currentMonthKey();
 
     return Stack(
       children: [
-        StreamBuilder<List<Category>>(
-          stream: db.watchCategories(),
-          builder: (context, catSnap) {
-            final cats = catSnap.data ?? const <Category>[];
-            final catMap = {for (final c in cats) c.id: c};
+        ListView(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text('Dépenses', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
+                ),
+                Text(month, style: const TextStyle(color: Colors.white60, fontWeight: FontWeight.w700)),
+              ],
+            ),
+            const SizedBox(height: 12),
 
-            return StreamBuilder<List<Subcategory>>(
-              stream: db.select(db.subcategories).watch(),
-              builder: (context, subSnap) {
-                final subs = subSnap.data ?? const <Subcategory>[];
-                final subMap = {for (final s in subs) s.id: s};
+            // Filter (pro): one button
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.filter_alt_outlined),
+                title: Text(categoryFilterId == null ? 'Toutes les catégories' : 'Catégorie sélectionnée'),
+                subtitle: const Text('Filtrer les dépenses'),
+                trailing: const Icon(Icons.expand_more),
+                onTap: () => _pickCategoryFilter(context, db),
+              ),
+            ),
 
-                return StreamBuilder<List<Expense>>(
-                  stream: db.watchExpenses(),
-                  builder: (context, snapshot) {
-                    final items = snapshot.data ?? const <Expense>[];
-                    if (items.isEmpty) {
-                      return const Center(child: Text('Aucune dépense. Ajoute la première.'));
-                    }
+            const SizedBox(height: 12),
 
-                    return ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
-                      itemCount: items.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 10),
-                      itemBuilder: (context, i) {
-                        final e = items[i];
-                        final sub = subMap[e.subcategoryId];
-                        final cat = sub == null ? null : catMap[sub.categoryId];
-                        return Card(
-                          child: ListTile(
-                            title: Text(e.note),
-                            subtitle: Text('${cat?.name ?? 'Catégorie'} • ${sub?.name ?? 'Sous‑catégorie'} • ${_fmtDate(e.spentAt)}'),
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text('${e.amount.toStringAsFixed(0)} DA', style: const TextStyle(fontWeight: FontWeight.w800)),
-                                const SizedBox(width: 10),
-                                IconButton(
-                                  icon: const Icon(Icons.delete_outline),
-                                  onPressed: () => db.deleteExpense(e.id),
-                                )
-                              ],
+            // Pie: subcategories
+            FutureBuilder<List<SubcategoryTotal>>(
+              future: db.expensesBySubcategoryForMonth(month, categoryId: categoryFilterId),
+              builder: (context, snap) {
+                final rows = (snap.data ?? const <SubcategoryTotal>[]).where((r) => r.total > 0).toList();
+                if (rows.isEmpty) return const SizedBox.shrink();
+
+                final top = rows.take(6).toList();
+                final rest = rows.skip(6).fold<double>(0, (s, r) => s + r.total);
+
+                final slices = <PieSlice>[
+                  for (final r in top) PieSlice(value: r.total, color: Color(r.color), label: r.name),
+                  if (rest > 0) const PieSlice(value: 0, color: Colors.white24, label: 'Autres'),
+                ];
+                if (rest > 0) {
+                  slices[slices.length - 1] = PieSlice(value: rest, color: Colors.white24, label: 'Autres');
+                }
+
+                return Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Répartition par sous‑catégorie', style: TextStyle(fontWeight: FontWeight.w900)),
+                        const SizedBox(height: 12),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            SimplePieChart(slices: slices, size: 130, centerText: ''),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  for (final s in slices.take(7))
+                                    Padding(
+                                      padding: const EdgeInsets.only(bottom: 10),
+                                      child: Row(
+                                        children: [
+                                          Container(
+                                            width: 10,
+                                            height: 10,
+                                            decoration: BoxDecoration(
+                                              color: s.color,
+                                              borderRadius: BorderRadius.circular(99),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 10),
+                                          Expanded(
+                                            child: Text(
+                                              s.label,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(fontWeight: FontWeight.w700),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    )
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+
+            const SizedBox(height: 12),
+
+            // List
+            StreamBuilder<List<Expense>>(
+              stream: db.watchExpensesForMonth(month),
+              builder: (context, snap) {
+                final items = snap.data ?? const <Expense>[];
+                if (items.isEmpty) {
+                  return const Card(
+                    child: Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Text('Aucune dépense ce mois‑ci.'),
+                    ),
+                  );
+                }
+
+                // if filter set, keep only those matching category via subcategory lookup
+                return FutureBuilder<List<Subcategory>>(
+                  future: db.select(db.subcategories).get(),
+                  builder: (context, subSnap) {
+                    final subs = subSnap.data ?? const <Subcategory>[];
+                    final subToCat = {for (final s in subs) s.id: s.categoryId};
+
+                    final filtered = categoryFilterId == null
+                        ? items
+                        : items.where((e) => subToCat[e.subcategoryId] == categoryFilterId).toList();
+
+                    return Column(
+                      children: [
+                        for (final e in filtered)
+                          Card(
+                            child: ListTile(
+                              title: Text(e.note, maxLines: 1, overflow: TextOverflow.ellipsis),
+                              subtitle: Text(_fmtDate(e.spentAt), style: const TextStyle(color: Colors.white60)),
+                              trailing: Text('${e.amount.toStringAsFixed(0)} DA', style: const TextStyle(fontWeight: FontWeight.w900)),
                             ),
                           ),
-                        );
-                      },
+                      ],
                     );
                   },
                 );
               },
-            );
-          },
+            ),
+          ],
         ),
+
         Positioned(
           right: 16,
           bottom: 16,
@@ -78,12 +178,56 @@ class ExpensesScreen extends StatelessWidget {
       ],
     );
   }
-}
 
+  Future<void> _pickCategoryFilter(BuildContext context, AppDb db) async {
+    final cats = await db.listCategories();
+    if (!context.mounted) return;
+
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      builder: (_) {
+        return SafeArea(
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              ListTile(
+                title: const Text('Filtrer par catégorie', style: TextStyle(fontWeight: FontWeight.w900)),
+                trailing: TextButton(
+                  onPressed: () {
+                    setState(() => categoryFilterId = null);
+                    Navigator.pop(context);
+                  },
+                  child: const Text('Reset'),
+                ),
+              ),
+              for (final c in cats)
+                ListTile(
+                  leading: const Icon(Icons.category),
+                  title: Text(c.name),
+                  onTap: () {
+                    setState(() => categoryFilterId = c.id);
+                    Navigator.pop(context);
+                  },
+                ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
 
 String _fmtDate(DateTime d) {
   final y = d.year.toString().padLeft(4, '0');
   final m = d.month.toString().padLeft(2, '0');
   final day = d.day.toString().padLeft(2, '0');
   return '$y-$m-$day';
+}
+
+String _currentMonthKey() {
+  final now = DateTime.now();
+  final m = now.month.toString().padLeft(2, '0');
+  return '${now.year}-$m';
 }

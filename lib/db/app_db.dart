@@ -63,6 +63,26 @@ class CategoryTotal {
   });
 }
 
+class SubcategoryTotal {
+  final int subcategoryId;
+  final String name;
+  final String icon;
+  final int color;
+  final int categoryId;
+  final String categoryName;
+  final double total;
+
+  const SubcategoryTotal({
+    required this.subcategoryId,
+    required this.name,
+    required this.icon,
+    required this.color,
+    required this.categoryId,
+    required this.categoryName,
+    required this.total,
+  });
+}
+
 class AppDb extends _$AppDb {
   AppDb() : super(_openConnection());
 
@@ -250,6 +270,49 @@ class AppDb extends _$AppDb {
         name: d['category_name'] as String,
         icon: d['category_icon'] as String,
         color: d['category_color'] as int,
+        total: (d['total_amount'] as num?)?.toDouble() ?? 0,
+      );
+    }).toList();
+  }
+
+  /// Aggregation: total expenses per subcategory for a month (optionally for one category)
+  Future<List<SubcategoryTotal>> expensesBySubcategoryForMonth(String monthKey, {int? categoryId}) async {
+    final range = monthRange(monthKey);
+    final startIso = range.$1.toIso8601String();
+    final endIso = range.$2.toIso8601String();
+
+    final c = categories.actualTableName;
+    final s = subcategories.actualTableName;
+    final e = expenses.actualTableName;
+
+    final whereCat = categoryId == null ? '' : ' AND $c.id = ? ';
+    final vars = <Variable>[Variable.withString(startIso), Variable.withString(endIso)];
+    if (categoryId != null) vars.add(Variable.withInt(categoryId));
+
+    final rows = await customSelect(
+      'SELECT $s.id AS sub_id, $s.name AS sub_name, $s.icon AS sub_icon, $s.color AS sub_color, '
+      '$c.id AS category_id, $c.name AS category_name, '
+      'SUM($e.amount) AS total_amount '
+      'FROM $e '
+      'JOIN $s ON $s.id = $e.subcategory_id '
+      'JOIN $c ON $c.id = $s.category_id '
+      'WHERE $e.spent_at >= ? AND $e.spent_at < ? '
+      '$whereCat '
+      'GROUP BY $s.id, $s.name, $s.icon, $s.color, $c.id, $c.name '
+      'ORDER BY total_amount DESC',
+      variables: vars,
+      readsFrom: {categories, subcategories, expenses},
+    ).get();
+
+    return rows.map((r) {
+      final d = r.data;
+      return SubcategoryTotal(
+        subcategoryId: d['sub_id'] as int,
+        name: d['sub_name'] as String,
+        icon: d['sub_icon'] as String,
+        color: d['sub_color'] as int,
+        categoryId: d['category_id'] as int,
+        categoryName: d['category_name'] as String,
         total: (d['total_amount'] as num?)?.toDouble() ?? 0,
       );
     }).toList();
