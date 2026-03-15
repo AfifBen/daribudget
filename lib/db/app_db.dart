@@ -55,28 +55,12 @@ class AppDb extends _$AppDb {
 
   // ---------- Defaults (seed)
   Future<void> ensureDefaultCategories() async {
-    final existing = await select(categories).get();
-    if (existing.isNotEmpty) return;
+    final existingCats = await select(categories).get();
+    final existingSubs = await select(subcategories).get();
 
     Future<int> addCat(String name, String icon, int color) {
       return into(categories).insert(CategoriesCompanion.insert(name: name, icon: icon, color: color));
     }
-
-    // Default universal categories (editable later)
-    final foodId = await addCat('Alimentation', 'restaurant', 0xFFD8B45C);
-    final transportId = await addCat('Transport', 'directions_car', 0xFF4FC3F7);
-    final billsId = await addCat('Factures', 'receipt_long', 0xFFFFB74D);
-    final healthId = await addCat('Santé', 'medical_services', 0xFFE57373);
-    final leisureId = await addCat('Loisirs', 'sports_esports', 0xFFBA68C8);
-    final eduId = await addCat('Éducation', 'school', 0xFF81C784);
-
-    // Budget categories
-    await addCat('Budget mensuel', 'pie_chart', 0xFFD8B45C);
-    await addCat('Épargne', 'savings', 0xFF81C784);
-
-    // Shopping categories
-    await addCat('Courses', 'shopping_cart', 0xFFD8B45C);
-    await addCat('Maison', 'home', 0xFF90A4AE);
 
     Future<void> addSub(int catId, String name, String icon, int color) async {
       await into(subcategories).insert(SubcategoriesCompanion.insert(
@@ -87,40 +71,102 @@ class AppDb extends _$AppDb {
       ));
     }
 
-    // Alimentation
-    for (final name in ['Viandes', 'Légumes', 'Fruits', 'Laitages', 'Boulangerie', 'Boissons', 'Épices']) {
-      await addSub(foodId, name, 'restaurant', 0xFFD8B45C);
+    // If nothing exists, seed everything
+    if (existingCats.isEmpty) {
+      // Default universal categories (editable later)
+      final foodId = await addCat('Alimentation', 'restaurant', 0xFFD8B45C);
+      final transportId = await addCat('Transport', 'directions_car', 0xFF4FC3F7);
+      final billsId = await addCat('Factures', 'receipt_long', 0xFFFFB74D);
+      final healthId = await addCat('Santé', 'medical_services', 0xFFE57373);
+      final leisureId = await addCat('Loisirs', 'sports_esports', 0xFFBA68C8);
+      final eduId = await addCat('Éducation', 'school', 0xFF81C784);
+
+      // Budget categories
+      await addCat('Budget mensuel', 'pie_chart', 0xFFD8B45C);
+      await addCat('Épargne', 'savings', 0xFF81C784);
+
+      // Shopping categories
+      await addCat('Courses', 'shopping_cart', 0xFFD8B45C);
+      await addCat('Maison', 'home', 0xFF90A4AE);
+
+      // Subcategories (mandatory for expenses)
+      for (final name in ['Viandes', 'Légumes', 'Fruits', 'Laitages', 'Boulangerie', 'Boissons', 'Épices']) {
+        await addSub(foodId, name, 'restaurant', 0xFFD8B45C);
+      }
+      for (final name in ['Carburant', 'Taxi', 'Maintenance']) {
+        await addSub(transportId, name, 'directions_car', 0xFF4FC3F7);
+      }
+      for (final name in ['Électricité', 'Eau', 'Internet', 'Téléphone']) {
+        await addSub(billsId, name, 'receipt_long', 0xFFFFB74D);
+      }
+      for (final name in ['Médecin', 'Pharmacie']) {
+        await addSub(healthId, name, 'medical_services', 0xFFE57373);
+      }
+      for (final name in ['Jeux', 'Sorties']) {
+        await addSub(leisureId, name, 'sports_esports', 0xFFBA68C8);
+      }
+      for (final name in ['Frais scolaires', 'Livres']) {
+        await addSub(eduId, name, 'school', 0xFF81C784);
+      }
+      return;
     }
 
-    // Transport
-    for (final name in ['Carburant', 'Taxi', 'Maintenance']) {
-      await addSub(transportId, name, 'directions_car', 0xFF4FC3F7);
-    }
+    // If categories exist but subcategories are missing (common after upgrades), seed subcategories only
+    if (existingSubs.isEmpty) {
+      final byName = {for (final c in existingCats) c.name: c.id};
+      final foodId = byName['Alimentation'];
+      final transportId = byName['Transport'];
+      final billsId = byName['Factures'];
+      final healthId = byName['Santé'];
+      final leisureId = byName['Loisirs'];
+      final eduId = byName['Éducation'];
 
-    // Factures
-    for (final name in ['Électricité', 'Eau', 'Internet', 'Téléphone']) {
-      await addSub(billsId, name, 'receipt_long', 0xFFFFB74D);
-    }
-
-    // Santé
-    for (final name in ['Médecin', 'Pharmacie']) {
-      await addSub(healthId, name, 'medical_services', 0xFFE57373);
-    }
-
-    // Loisirs
-    for (final name in ['Jeux', 'Sorties']) {
-      await addSub(leisureId, name, 'sports_esports', 0xFFBA68C8);
-    }
-
-    // Éducation
-    for (final name in ['Frais scolaires', 'Livres']) {
-      await addSub(eduId, name, 'school', 0xFF81C784);
+      if (foodId != null) {
+        for (final name in ['Viandes', 'Légumes', 'Fruits', 'Laitages', 'Boulangerie', 'Boissons', 'Épices']) {
+          await addSub(foodId, name, 'restaurant', 0xFFD8B45C);
+        }
+      }
+      if (transportId != null) {
+        for (final name in ['Carburant', 'Taxi', 'Maintenance']) {
+          await addSub(transportId, name, 'directions_car', 0xFF4FC3F7);
+        }
+      }
+      if (billsId != null) {
+        for (final name in ['Électricité', 'Eau', 'Internet', 'Téléphone']) {
+          await addSub(billsId, name, 'receipt_long', 0xFFFFB74D);
+        }
+      }
+      if (healthId != null) {
+        for (final name in ['Médecin', 'Pharmacie']) {
+          await addSub(healthId, name, 'medical_services', 0xFFE57373);
+        }
+      }
+      if (leisureId != null) {
+        for (final name in ['Jeux', 'Sorties']) {
+          await addSub(leisureId, name, 'sports_esports', 0xFFBA68C8);
+        }
+      }
+      if (eduId != null) {
+        for (final name in ['Frais scolaires', 'Livres']) {
+          await addSub(eduId, name, 'school', 0xFF81C784);
+        }
+      }
     }
   }
 
   // ---------- Categories queries
   Stream<List<Category>> watchCategories() => (select(categories)..orderBy([(t) => OrderingTerm.asc(t.name)])).watch();
   Future<List<Category>> listCategories() => (select(categories)..orderBy([(t) => OrderingTerm.asc(t.name)])).get();
+
+  /// Only categories that have at least one subcategory (required for expenses)
+  Future<List<Category>> listExpenseCategories() {
+    final c = categories.actualTableName;
+    final s = subcategories.actualTableName;
+    return customSelect(
+      'SELECT DISTINCT $c.* FROM $c INNER JOIN $s ON $s.category_id = $c.id ORDER BY $c.name',
+      readsFrom: {categories, subcategories},
+    ).map((row) => categories.map(row.data)).get();
+  }
 
   Stream<List<Subcategory>> watchSubcategories(int categoryId) =>
       (select(subcategories)..where((t) => t.categoryId.equals(categoryId))..orderBy([(t) => OrderingTerm.asc(t.name)])).watch();

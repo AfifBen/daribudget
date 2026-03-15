@@ -54,7 +54,7 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
             ),
             const SizedBox(height: 10),
             FutureBuilder<List<Category>>(
-              future: db.listCategories(),
+              future: db.listExpenseCategories(),
               builder: (context, snapshot) {
                 final cats = snapshot.data ?? const <Category>[];
                 if (cats.isEmpty) return const Text('Aucune catégorie.');
