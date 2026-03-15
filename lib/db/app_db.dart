@@ -39,6 +39,19 @@ class AppDb extends _$AppDb {
 
   // Expenses
   Stream<List<Expense>> watchExpenses() => (select(expenses)..orderBy([(t) => OrderingTerm.desc(t.spentAt)])).watch();
+
+  Stream<List<Expense>> watchExpensesForMonth(String monthKey) {
+    final parts = monthKey.split('-');
+    final year = int.parse(parts[0]);
+    final month = int.parse(parts[1]);
+    final start = DateTime(year, month, 1);
+    final end = (month == 12) ? DateTime(year + 1, 1, 1) : DateTime(year, month + 1, 1);
+
+    return (select(expenses)
+          ..where((t) => t.spentAt.isBetweenValues(start, end))
+          ..orderBy([(t) => OrderingTerm.desc(t.spentAt)]))
+        .watch();
+  }
   Future<int> addExpense({required double amount, required String note, String category = 'Général', DateTime? spentAt}) {
     return into(expenses).insert(ExpensesCompanion.insert(
       amount: amount,

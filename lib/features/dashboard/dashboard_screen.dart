@@ -58,7 +58,7 @@ class _DashboardHome extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final db = context.read<AppDb>();
-    final month = currentMonthKey();
+    final month = _currentMonthKey();
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -217,7 +217,7 @@ class _BudgetProgress extends StatelessWidget {
     if (totalBudgets <= 0) {
       return const Text('Ajoute un budget pour voir la progression.', style: TextStyle(color: Colors.white70));
     }
-    final ratio = (totalExpenses / totalBudgets).clamp(0, 1);
+    final ratio = (totalExpenses / totalBudgets).clamp(0.0, 1.0).toDouble();
     final percent = (ratio * 100).round();
 
     return Column(
@@ -242,6 +242,12 @@ class _BudgetProgress extends StatelessWidget {
       ],
     );
   }
+}
+
+String _currentMonthKey() {
+  final now = DateTime.now();
+  final m = now.month.toString().padLeft(2, '0');
+  return '${now.year}-$m';
 }
 
 class _QuickChip extends StatelessWidget {
