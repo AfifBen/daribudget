@@ -31,8 +31,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('DariBudget'),
-        centerTitle: false,
+        title: const Text(''),
+        centerTitle: true,
         actions: [
           IconButton(
             onPressed: () => context.go('/history'),
@@ -278,14 +278,19 @@ class _HeroCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Solde du mois', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.white70)),
-            const SizedBox(height: 10),
-            Text(
-              '${remaining.toStringAsFixed(0)} DA',
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w900),
+            Center(
+              child: Text(
+                'Solde du mois',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.white70),
+              ),
             ),
-            const SizedBox(height: 6),
-            Text(month, style: const TextStyle(color: Colors.white60)),
+            const SizedBox(height: 10),
+            Center(
+              child: Text(
+                '${remaining.toStringAsFixed(0)} DA',
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w900),
+              ),
+            ),
             const SizedBox(height: 14),
             Row(
               children: [

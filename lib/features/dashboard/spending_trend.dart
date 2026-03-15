@@ -29,19 +29,16 @@ class _SpendingTrendState extends State<SpendingTrend> {
           children: [
             const Text('Dépenses', style: TextStyle(fontWeight: FontWeight.w900)),
             const SizedBox(height: 10),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: SegmentedButton<TrendRange>(
-                  segments: const [
-                    ButtonSegment(value: TrendRange.day, label: Text('Jour')),
-                    ButtonSegment(value: TrendRange.week, label: Text('Semaine')),
-                    ButtonSegment(value: TrendRange.month, label: Text('Mois')),
-                  ],
-                  selected: {range},
-                  onSelectionChanged: (s) => setState(() => range = s.first),
-                ),
+            SizedBox(
+              width: double.infinity,
+              child: SegmentedButton<TrendRange>(
+                segments: const [
+                  ButtonSegment(value: TrendRange.day, label: Text('Jour')),
+                  ButtonSegment(value: TrendRange.week, label: Text('Semaine')),
+                  ButtonSegment(value: TrendRange.month, label: Text('Mois')),
+                ],
+                selected: {range},
+                onSelectionChanged: (s) => setState(() => range = s.first),
               ),
             ),
             const SizedBox(height: 12),
@@ -50,7 +47,7 @@ class _SpendingTrendState extends State<SpendingTrend> {
               builder: (context, snap) {
                 final data = snap.data ?? const <BarDatum>[];
                 if (data.isEmpty) {
-                  return const Text('Ajoute des dépenses pour voir la tendance.', style: TextStyle(color: Colors.white70));
+                  return const SizedBox(height: 8);
                 }
                 return SimpleBarChart(data: data, height: 140);
               },
