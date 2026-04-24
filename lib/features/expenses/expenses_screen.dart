@@ -4,12 +4,11 @@ import 'package:provider/provider.dart';
 
 import '../../app/app_state.dart';
 import '../../db/app_db.dart';
+import '../categories/category_ui.dart';
 import '../charts/pie_chart.dart';
 import 'add_expense_sheet.dart';
 
 enum ExpenseRange { day, week, month, year }
-
-enum OpsTab { expenses, income }
 
 class ExpensesScreen extends StatefulWidget {
   const ExpensesScreen({super.key});
@@ -20,7 +19,6 @@ class ExpensesScreen extends StatefulWidget {
 
 class _ExpensesScreenState extends State<ExpensesScreen> {
   ExpenseRange range = ExpenseRange.month;
-  OpsTab opsTab = OpsTab.expenses;
   int? categoryFilterId;
 
   @override
@@ -45,32 +43,6 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
             ),
             const SizedBox(height: 12),
 
-            // Tabs: Dépenses / Revenus (Revenus à venir)
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: FilledButton(
-                        onPressed: () => setState(() => opsTab = OpsTab.expenses),
-                        child: const Text('Dépenses'),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: null,
-                        child: const Text('Revenus (à venir)'),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 12),
-
             // Range selector
             Card(
               child: Padding(
@@ -79,10 +51,26 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                   scrollDirection: Axis.horizontal,
                   child: SegmentedButton<ExpenseRange>(
                     segments: const [
-                      ButtonSegment(value: ExpenseRange.day, label: Text('Jour')),
-                      ButtonSegment(value: ExpenseRange.week, label: Text('Semaine')),
-                      ButtonSegment(value: ExpenseRange.month, label: Text('Mois')),
-                      ButtonSegment(value: ExpenseRange.year, label: Text('Année')),
+                      ButtonSegment(
+                        value: ExpenseRange.day,
+                        icon: Icon(Icons.today_outlined),
+                        label: Text('Jour'),
+                      ),
+                      ButtonSegment(
+                        value: ExpenseRange.week,
+                        icon: Icon(Icons.view_week_outlined),
+                        label: Text('Semaine'),
+                      ),
+                      ButtonSegment(
+                        value: ExpenseRange.month,
+                        icon: Icon(Icons.calendar_month_outlined),
+                        label: Text('Mois'),
+                      ),
+                      ButtonSegment(
+                        value: ExpenseRange.year,
+                        icon: Icon(Icons.calendar_today_outlined),
+                        label: Text('Année'),
+                      ),
                     ],
                     selected: {range},
                     onSelectionChanged: (s) => setState(() => range = s.first),
@@ -96,7 +84,21 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
             // Filter (pro)
             Card(
               child: ListTile(
-                leading: const Icon(Icons.filter_alt_outlined),
+                leading: FutureBuilder<List<Category>>(
+                  future: db.listCategories(),
+                  builder: (context, snap) {
+                    final cats = snap.data ?? const <Category>[];
+                    Category? selected;
+                    for (final c in cats) {
+                      if (c.id == categoryFilterId) {
+                        selected = c;
+                        break;
+                      }
+                    }
+                    if (selected == null) return const Icon(Icons.filter_alt_outlined);
+                    return Icon(iconFromKey(selected.icon), color: Color(selected.color));
+                  },
+                ),
                 title: FutureBuilder<List<Category>>(
                   future: db.listCategories(),
                   builder: (context, snap) {
@@ -232,6 +234,27 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                           for (final e in groups[k]!)
                             Card(
                               child: ListTile(
+                                leading: Builder(
+                                  builder: (_) {
+                                    Subcategory? sub;
+                                    for (final s in subs) {
+                                      if (s.id == e.subcategoryId) {
+                                        sub = s;
+                                        break;
+                                      }
+                                    }
+                                    if (sub == null) return const Icon(Icons.payments_outlined);
+                                    return CircleAvatar(
+                                      radius: 14,
+                                      backgroundColor: Color(sub.color).withValues(alpha: 0.2),
+                                      child: Icon(
+                                        iconFromKey(sub.icon),
+                                        size: 16,
+                                        color: Color(sub.color),
+                                      ),
+                                    );
+                                  },
+                                ),
                                 title: Text(subToName[e.subcategoryId] ?? e.note, maxLines: 1, overflow: TextOverflow.ellipsis),
                                 subtitle: e.note.trim().isEmpty ? null : Text(e.note, maxLines: 1, overflow: TextOverflow.ellipsis),
                                 trailing: Text('${e.amount.toStringAsFixed(0)} DA', style: const TextStyle(fontWeight: FontWeight.w900)),
@@ -251,14 +274,12 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
           right: 16,
           bottom: 16,
           child: FloatingActionButton(
-            onPressed: opsTab == OpsTab.expenses
-                ? () => showModalBottomSheet(
-                      context: context,
-                      isScrollControlled: true,
-                      useSafeArea: true,
-                      builder: (_) => const AddExpenseSheet(),
-                    )
-                : null,
+            onPressed: () => showModalBottomSheet(
+              context: context,
+              isScrollControlled: true,
+              useSafeArea: true,
+              builder: (_) => const AddExpenseSheet(),
+            ),
             child: const Icon(Icons.add),
           ),
         )
