@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../db/app_db.dart';
+import '../categories/category_ui.dart';
 import 'subcategory_picker_sheet.dart';
 
 class AddExpenseSheet extends StatefulWidget {
@@ -12,12 +13,16 @@ class AddExpenseSheet extends StatefulWidget {
 }
 
 class _AddExpenseSheetState extends State<AddExpenseSheet> {
+  static const _quickAmounts = <int>[100, 200, 500, 1000, 2000, 5000];
+
   final _formKey = GlobalKey<FormState>();
   final _amountCtrl = TextEditingController();
   final _noteCtrl = TextEditingController();
 
   int? _subcategoryId;
   String _subcategoryLabel = 'Choisir…';
+  String _subcategoryIcon = 'category';
+  int _subcategoryColor = 0xFF9E9E9E;
 
   @override
   void dispose() {
@@ -44,6 +49,8 @@ class _AddExpenseSheetState extends State<AddExpenseSheet> {
     setState(() {
       _subcategoryId = picked;
       _subcategoryLabel = '${cat?.name ?? 'Catégorie'} / ${sub.name}';
+      _subcategoryIcon = sub.icon;
+      _subcategoryColor = sub.color;
     });
   }
 
@@ -86,12 +93,32 @@ class _AddExpenseSheetState extends State<AddExpenseSheet> {
               TextFormField(
                 controller: _amountCtrl,
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Montant (DA)'),
+                decoration: const InputDecoration(
+                  labelText: 'Montant (DA)',
+                  prefixIcon: Icon(Icons.payments_outlined),
+                ),
                 validator: (v) {
                   final x = double.tryParse((v ?? '').trim());
                   if (x == null || x <= 0) return 'Montant invalide';
                   return null;
                 },
+              ),
+              const SizedBox(height: 10),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final amount in _quickAmounts)
+                      ActionChip(
+                        label: Text('$amount DA'),
+                        onPressed: () {
+                          setState(() => _amountCtrl.text = '$amount');
+                        },
+                      ),
+                  ],
+                ),
               ),
               const SizedBox(height: 12),
 
@@ -101,9 +128,16 @@ class _AddExpenseSheetState extends State<AddExpenseSheet> {
                 child: InputDecorator(
                   decoration: const InputDecoration(
                     labelText: 'Sous‑catégorie (obligatoire)',
+                    prefixIcon: Icon(Icons.category_outlined),
                   ),
                   child: Row(
                     children: [
+                      Icon(
+                        iconFromKey(_subcategoryIcon),
+                        size: 18,
+                        color: Color(_subcategoryColor),
+                      ),
+                      const SizedBox(width: 8),
                       Expanded(child: Text(_subcategoryLabel, maxLines: 1, overflow: TextOverflow.ellipsis)),
                       const Icon(Icons.expand_more),
                     ],
@@ -114,7 +148,10 @@ class _AddExpenseSheetState extends State<AddExpenseSheet> {
               const SizedBox(height: 12),
               TextFormField(
                 controller: _noteCtrl,
-                decoration: const InputDecoration(labelText: 'Note (optionnel)'),
+                decoration: const InputDecoration(
+                  labelText: 'Note (optionnel)',
+                  prefixIcon: Icon(Icons.edit_note),
+                ),
               ),
 
               const SizedBox(height: 16),
@@ -136,7 +173,14 @@ class _AddExpenseSheetState extends State<AddExpenseSheet> {
 
                     if (context.mounted) Navigator.pop(context);
                   },
-                  child: const Text('Enregistrer'),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.check_circle_outline),
+                      SizedBox(width: 8),
+                      Text('Enregistrer'),
+                    ],
+                  ),
                 ),
               ),
             ],
